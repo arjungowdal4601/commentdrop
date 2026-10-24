@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CommentDrop · Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <a class="brand" href="/"><span class="logo">▶</span>CommentDrop</a>
+    <nav class="nav">
+      <div class="nav-label">Creator</div>
+      <a href="/studio" class="on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>Studio</a>
+      <a href="/dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>Automations</a>
+      <a href="/comments">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Comments</a>
+    </nav>
+    <div class="side-foot">
+      <div class="sys">
+        <div class="sys-row"><span>AI</span><span class="pill green">Sonnet 5.5</span></div>
+        <div class="sys-row"><span>Transcripts</span><span class="pill gray" id="sysTx">…</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="head">
+      <div>
+        <h1>Studio</h1>
+        <p>Plan one video at a time: pick what inspires you, answer a few questions, get a storyboard.</p>
+      </div>
+      <button class="btn dark" id="newBtn">+ New project</button>
+    </div>
+    <div class="proj-grid" id="projects"><div class="card empty">Loading…</div></div>
+  </main>
+</div>
+
+<div class="modal-bg" id="modal">
+  <div class="card modal">
+    <div class="card-h"><h2>New video project</h2><button class="btn sm" id="closeModal" type="button">Close</button></div>
+    <form class="form" id="newForm">
+      <span class="step-pill">Step 1 of 4 · Name it</span>
+      <div class="field">
+        <label>What's this video about?</label>
+        <input class="input" name="name" placeholder="e.g. How AI agents actually work" required maxlength="120" autofocus>
+      </div>
+      <div class="field">
+        <label>Format</label>
+        <div class="chips-pick" id="formatPick">
+          <button type="button" class="pick on" data-format="auto">Not sure, AI decides</button>
+          <button type="button" class="pick" data-format="long">Long video</button>
+          <button type="button" class="pick" data-format="short">Short</button>
+        </div>
+      </div>
+      <div class="err" id="newErr"></div>
+      <button class="btn dark" type="submit">Create project</button>
+    </form>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const api = async (path, opts = {}) => {
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body && JSON.stringify(opts.body) });
+  if (res.status === 401) { location.href = '/'; throw new Error('Signed out'); }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+};
+const STAGE = { inspire: ['gray', 'Adding inspiration'], questions: ['blue', 'Answering questions'], storyboard: ['amber', 'Reviewing storyboard'], approved: ['green', 'Storyboard approved'] };
+const ago = (iso) => { const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : new Date(iso).toLocaleDateString(); };
+
+async function load() {
+  const [projects, status] = await Promise.all([api('/api/studio/projects'), api('/api/studio/status')]);
+  $('#sysTx').className = `pill ${status.transcriptsOnline ? 'green' : 'amber'}`;
+  $('#sysTx').textContent = status.transcriptsOnline ? 'Online' : 'Offline';
+  $('#projects').innerHTML = projects.length ? projects.map((p) => {
+    const [tone, label] = STAGE[p.stage] || STAGE.inspire;
+    return `<a class="card proj" href="/studio-project?id=${esc(p.id)}">
+      <div class="ph" style="${p.thumb ? `background-image:url('${esc(p.thumb)}')` : ''}">${p.thumb ? '' : '🎬'}</div>
+      <div class="pb"><b>${esc(p.name)}</b><span class="pill ${tone}">${label}</span>
+      <div class="small muted" style="margin-top:6px">${p.videos} inspiration video${p.videos === 1 ? '' : 's'} · ${ago(p.updated_at)}</div></div></a>`;
+  }).join('') : `<div class="card empty" style="grid-column:1/-1">No projects yet. Start one: name your video, add videos that inspire you, and the AI turns them into a storyboard.</div>`;
+}
+
+let format = 'auto';
+$('#formatPick').onclick = (e) => {
+  const b = e.target.closest('[data-format]');
+  if (!b) return;
+  format = b.dataset.format;
+  document.querySelectorAll('#formatPick .pick').forEach((x) => x.classList.toggle('on', x === b));
+};
+$('#newBtn').onclick = () => { $('#modal').classList.add('open'); $('#newForm [name=name]').focus(); };
+$('#closeModal').onclick = () => $('#modal').classList.remove('open');
+$('#newForm').onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const p = await api('/api/studio/projects', { method: 'POST', body: { name: e.target.name.value, format } });
+    location.href = `/studio-project?id=${p.id}`;
+  } catch (err) { $('#newErr').textContent = err.message; }
+};
+fetch('/api/me').then((r) => { if (r.status === 401) location.href = '/'; });
+load().catch((err) => { $('#projects').innerHTML = `<div class="card empty">${esc(err.message)}</div>`; });
+</script>
+</body>
+</html>

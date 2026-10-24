@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Automations · CommentDrop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/automations.css">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('cd.theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{}</script>
+</head>
+<body data-page="automations">
+<div class="shell">
+  <aside class="side" id="side"></aside>
+  <main class="main">
+    <div class="head">
+      <div>
+        <h1>Automations</h1>
+        <p class="small">Viewers get files after linking their email once via your viewer link.</p>
+      </div>
+      <div class="au-actions">
+        <button class="btn sm" id="copyJoinBtn" type="button">Copy viewer link</button>
+        <button class="btn dark" id="newBtn" type="button">New automation</button>
+      </div>
+    </div>
+
+    <section class="card au-sec">
+      <div class="card-h"><h2>Live automations</h2><span class="sub" id="liveSub"></span></div>
+      <ul class="au-list" id="liveList"><li class="au-empty">Loading…</li></ul>
+    </section>
+
+    <section class="card au-sec">
+      <div class="card-h au-wrap-h">
+        <h2>All videos</h2>
+        <div class="au-chips" id="filters" role="tablist">
+          <button class="au-chip on" data-f="all" type="button">All</button>
+          <button class="au-chip" data-f="with" type="button">With automation</button>
+          <button class="au-chip" data-f="without" type="button">Without automation</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="vt au-vt">
+          <thead><tr><th>Video</th><th class="num hide-sm">Views</th><th class="num">Status</th></tr></thead>
+          <tbody id="videoRows"><tr><td colspan="3" class="au-empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card au-sec">
+      <div class="card-h"><h2>Recent requests</h2><span class="sub">Updates every 20s</span></div>
+      <ul class="au-feed" id="feed"><li class="au-empty">Loading…</li></ul>
+      <div class="au-more" id="moreWrap" hidden><button class="btn sm" id="moreBtn" type="button">Show more</button></div>
+    </section>
+  </main>
+</div>
+
+<div class="modal-bg" id="amModal">
+  <div class="card modal" role="dialog" aria-modal="true" aria-labelledby="amTitle">
+    <div class="card-h"><h2 id="amTitle">New automation</h2><button class="btn sm" id="amClose" type="button">Close</button></div>
+    <form class="form" id="amForm" autocomplete="off">
+      <div class="field">
+        <label for="amVideo">Video</label>
+        <div class="vcell au-vview" id="amVideoView" hidden></div>
+        <select class="input" id="amVideo"></select>
+        <input class="input" id="amLink" placeholder="https://youtube.com/watch?v=…" hidden>
+      </div>
+      <div class="field">
+        <label for="amKeyword">Keyword</label>
+        <input class="input au-mono" id="amKeyword" placeholder="CHEATSHEET" required>
+      </div>
+      <div class="field">
+        <div class="au-lbl"><label>Document to send</label>
+          <label class="btn sm au-up" id="amUpBtn">Upload new<input type="file" id="amUpload" hidden></label></div>
+        <div class="au-files" id="amFiles" role="radiogroup"></div>
+        <div class="hint">PDF, ZIP, images or docs · max 4 MB</div>
+      </div>
+      <div class="field">
+        <label for="amSubject">Email subject</label>
+        <input class="input" id="amSubject" placeholder="Your file is here">
+      </div>
+      <div class="field">
+        <label for="amMessage">Email message</label>
+        <textarea class="input" id="amMessage" rows="3" placeholder="Thanks for commenting! Here's the file I promised."></textarea>
+      </div>
+      <div class="err" id="amErr"></div>
+      <div class="au-foot">
+        <button class="btn" id="amCancel" type="button">Cancel</button>
+        <button class="btn dark" id="amSave" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/shell.js"></script>
+<script src="/automations.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CommentDrop · Studio project</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <a class="brand" href="/"><span class="logo">▶</span>CommentDrop</a>
+    <nav class="nav">
+      <div class="nav-label">Creator</div>
+      <a href="/studio" class="on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>Studio</a>
+      <a href="/dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>Automations</a>
+      <a href="/comments">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Comments</a>
+    </nav>
+    <div class="side-foot">
+      <div class="sys">
+        <div class="sys-row"><span>AI</span><span class="pill green">Sonnet 5.5</span></div>
+        <div class="sys-row"><span>Transcripts</span><span class="pill gray" id="sysTx">…</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="studio-top">
+      <div class="crumb"><a href="/studio">Studio</a><span>/</span><input id="projName" aria-label="Project name" maxlength="120"></div>
+      <div class="steps-bar" id="steps"></div>
+    </div>
+    <div class="stage" id="stage"><div class="card working"><div class="spin"></div>Loading project…</div></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/blueprint.js"></script>
+<script src="/studio-project.js"></script>
+</body>
+</html>

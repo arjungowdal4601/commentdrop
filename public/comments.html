@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comments · CommentDrop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('cd.theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{}</script>
+</head>
+<body data-page="comments">
+<div class="shell">
+  <aside class="side" id="side"></aside>
+
+  <main class="main">
+    <!-- All videos -->
+    <div id="listView">
+      <div class="head"><div><h1>Comments</h1></div></div>
+      <section class="card">
+        <div class="tbl-wrap"><table class="vt">
+          <thead><tr><th>Video</th><th class="num hide-sm">Comments</th><th>Analysis</th></tr></thead>
+          <tbody id="videoRows"><tr><td colspan="3" class="muted">Loading your videos…</td></tr></tbody>
+        </table></div>
+      </section>
+    </div>
+
+    <!-- One video -->
+    <div id="videoView" hidden>
+      <div class="head vhead">
+        <div style="min-width:0">
+          <a class="back" href="/comments">← All videos</a>
+          <h1 id="vTitle"></h1>
+        </div>
+        <button class="btn dark" id="analyzeBtn" type="button">Analyze comments</button>
+      </div>
+
+      <div class="banner" id="connectYt" hidden>
+        <div><b>Allow YouTube access to reply and hide comments.</b></div>
+        <a class="btn sm dark" href="/api/auth/google">Allow</a>
+      </div>
+
+      <section class="card empty" id="empty">Not analysed yet. <b>Analyze comments</b> sorts every comment and sums up your audience's feedback.</section>
+
+    <div id="result" hidden>
+      <section class="card ov" id="overview"></section>
+
+      <section class="card ix">
+        <div class="ix-views" role="tablist" id="views"></div>
+        <div class="ix-tabs" id="tabs"></div>
+        <div class="ix-tools">
+          <input class="input" id="search" type="search" placeholder="Search comments or names" aria-label="Search comments">
+          <span class="small muted" id="filterNote"></span>
+          <div class="ix-bulk" id="bulk" hidden>
+            <label class="small"><input type="checkbox" id="checkAll"> Select all</label>
+            <button class="btn sm" data-bulk="hide" type="button">Hide selected</button>
+            <button class="btn sm red" data-bulk="ban" type="button">Hide &amp; ban authors</button>
+          </div>
+        </div>
+        <div class="ix-body">
+          <ul class="ix-list" id="list" role="listbox" aria-label="Comments"></ul>
+          <div class="ix-detail" id="detail"></div>
+        </div>
+        <div class="gv" id="groupsView" hidden></div>
+        <div class="rv" id="reviewView" hidden></div>
+      </section>
+    </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-bg" id="confirm">
+  <div class="card modal">
+    <div class="card-h"><h2 id="cfTitle">Reply to all</h2><button class="btn sm" id="cfClose" type="button">Cancel</button></div>
+    <div class="form">
+      <p style="margin:0" id="cfText"></p>
+      <div class="card" style="padding:12px 14px;background:var(--panel-2);box-shadow:none"><div class="small muted" style="margin-bottom:4px">Each reply will read:</div><div id="cfPreview" style="white-space:pre-wrap"></div></div>
+      <p class="small muted" style="margin:0" id="cfCost"></p>
+      <div class="err" id="cfErr"></div>
+      <button class="btn dark" id="cfGo" type="button">Post replies</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="tip" id="tip" role="tooltip"></div>
+<script src="/shell.js"></script>
+<script src="/comments.js"></script>
+</body>
+</html>

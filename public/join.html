@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CommentDrop · Get creator materials in your inbox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body style="background:#fff">
+<div class="join-wrap">
+  <section class="join-left">
+    <a class="brand" href="/"><span class="logo">▶</span>CommentDrop</a>
+    <div>
+      <h1>Comment the keyword.<br>Get it in your inbox.</h1>
+      <p class="lead">Link your YouTube account once. Whenever a creator says “comment CHEATSHEET to get it”, the material lands in your email. No link hunting.</p>
+    </div>
+
+    <form class="card form" id="joinForm" style="box-shadow:none">
+      <div class="field">
+        <label>Email</label>
+        <input class="input" type="email" name="email" placeholder="you@gmail.com" required autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Your YouTube @handle</label>
+        <input class="input" name="handle" placeholder="@yourhandle" required autocomplete="off">
+        <span class="hint">The account you comment from. Find it on youtube.com/account</span>
+      </div>
+      <div class="err" id="joinErr"></div>
+      <button class="btn dark" type="submit" style="height:40px">Link my YouTube</button>
+    </form>
+
+    <div id="done" hidden></div>
+  </section>
+
+  <section class="join-right">
+    <div>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div><b>Link once</b><span>Your email + the YouTube account you comment from.</span></div></div>
+        <div class="step"><div class="n">2</div><div><b>Comment the keyword</b><span>On any video from a creator using CommentDrop.</span></div></div>
+        <div class="step"><div class="n">3</div><div><b>Check your inbox</b><span>The material arrives in under a minute.</span></div></div>
+      </div>
+      <div class="mock-comment">
+        <div class="av">A</div>
+        <div><b style="font-size:12px">@you</b> <span style="color:#71717a;font-size:12px">· just now</span><div style="margin-top:2px">CHEATSHEET 🙏</div>
+          <div style="margin-top:8px;color:#86efac;font-size:12px">✓ Sent to your inbox</div></div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+document.getElementById('joinForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button');
+  const err = document.getElementById('joinErr');
+  btn.disabled = true; btn.textContent = 'Linking…'; err.textContent = '';
+  try {
+    const res = await fetch('/api/viewers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error);
+    e.target.hidden = true;
+    const done = document.getElementById('done');
+    done.hidden = false;
+    done.innerHTML = `
+      <div class="linked">
+        ${d.avatar ? `<img class="av" src="${esc(d.avatar)}" alt="">` : `<div class="av">${esc((d.name || '?')[0].toUpperCase())}</div>`}
+        <div><b>${esc(d.name)}</b> <span class="muted small">${esc(d.handle)}</span>
+        <div class="small" style="color:var(--green);font-weight:600">✓ Linked to ${esc(d.email)}</div></div>
+      </div>
+      <p class="muted" style="margin:14px 0 0">${d.caughtUp ? `You'd already asked for ${d.caughtUp} material${d.caughtUp > 1 ? 's' : ''}. Sent just now, check your inbox.` : 'All set. Comment the keyword on a video and check your inbox.'}</p>`;
+  } catch (ex) {
+    err.textContent = ex.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Link my YouTube';
+  }
+};
+</script>
+</body>
+</html>

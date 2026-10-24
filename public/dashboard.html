@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · CommentDrop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('cd.theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{}</script>
+</head>
+<body data-page="dashboard">
+<div class="shell">
+  <aside class="side" id="side"></aside>
+  <main class="main">
+    <div class="head">
+      <div><h1>Dashboard</h1><p id="chan"></p></div>
+      <button class="btn sm" id="refresh" type="button">Refresh</button>
+    </div>
+
+    <section class="kpis" id="kpis">
+      <div class="card kpi2"><div class="k">Views</div><div class="v skel"></div></div>
+      <div class="card kpi2"><div class="k">Subscribers</div><div class="v skel"></div></div>
+      <div class="card kpi2"><div class="k">Comments</div><div class="v skel"></div></div>
+      <div class="card kpi2"><div class="k">Documents sent</div><div class="v skel"></div></div>
+      <div class="card kpi2"><div class="k">Videos with a giveaway</div><div class="v skel"></div></div>
+    </section>
+
+    <section class="card nudge" id="nudge" hidden></section>
+
+    <section class="card">
+      <div class="card-h"><h2>Videos</h2><a class="btn sm" href="/automations">Manage automations</a></div>
+      <div class="tbl-wrap"><table class="vt">
+        <thead><tr><th>Video</th><th class="num hide-sm">Views</th><th class="num hide-sm">Comments</th><th>Giveaway</th></tr></thead>
+        <tbody id="videos"><tr><td colspan="4" class="muted">Loading your videos…</td></tr></tbody>
+      </table></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/shell.js"></script>
+<script src="/dashboard.js"></script>
+</body>
+</html>

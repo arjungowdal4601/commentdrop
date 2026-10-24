@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CommentDrop · Every giveaway becomes a comment</title>
+  <meta name="description" content="Viewers comment a keyword under your YouTube video and get your material by email, sent from your own Gmail. Plus an inbox that tells you what your audience thinks.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root { --red: #ef4444; --night: #09090b; --night-2: #131316; --night-line: #26262b; }
+    html { scroll-behavior: smooth; }
+    body.lp { background: #fff; color: var(--ink); overflow-x: hidden; }
+    .lp a { text-decoration: none; }
+    .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+    .progress { position: fixed; top: 0; left: 0; height: 3px; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: var(--red); z-index: 60; }
+
+    /* Nav */
+    .lp-nav { position: fixed; inset: 0 0 auto; z-index: 50; transition: background .3s, border-color .3s; border-bottom: 1px solid transparent; }
+    .lp-nav .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
+    .lp-nav .brand { color: #fff; margin: 0; }
+    .lp-nav nav { display: flex; gap: 22px; margin-left: auto; }
+    .lp-nav nav a { color: #a1a1aa; font-size: 14px; font-weight: 500; }
+    .lp-nav nav a:hover { color: #fff; }
+    .lp-nav .btn { height: 36px; }
+    .lp-nav.solid { background: rgba(255,255,255,.88); backdrop-filter: blur(10px); border-bottom-color: var(--line); }
+    .lp-nav.solid .brand { color: var(--ink); }
+    .lp-nav.solid nav a { color: var(--muted); } .lp-nav.solid nav a:hover { color: var(--ink); }
+    .gbtn { display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 22px; border-radius: 12px; background: #fff; color: #111; font-weight: 600; font-size: 15px; border: 1px solid #fff; box-shadow: 0 10px 30px rgba(239,68,68,.25); }
+    .gbtn:hover { transform: translateY(-1px); }
+    .ghost { display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border-radius: 12px; color: #e4e4e7; border: 1px solid #3f3f46; font-weight: 600; font-size: 15px; }
+    .ghost:hover { border-color: #71717a; color: #fff; }
+
+    /* Hero */
+    .hero { position: relative; background: var(--night); color: #fff; padding: 140px 0 110px; overflow: hidden; }
+    .hero::before { content: ""; position: absolute; width: 900px; height: 900px; left: 50%; top: -420px; transform: translateX(-50%); background: radial-gradient(closest-side, rgba(239,68,68,.32), transparent 70%); pointer-events: none; }
+    .hero::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(#ffffff12 1px, transparent 1px); background-size: 22px 22px; mask-image: linear-gradient(#000, transparent 85%); pointer-events: none; }
+    .hero .wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+    .eyebrow-pill { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: #fca5a5; border: 1px solid #7f1d1d; background: #ef444414; padding: 5px 12px; border-radius: 999px; }
+    .eyebrow-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 4px #ef444433; }
+    .hero h1 { font-size: clamp(42px, 6vw, 76px); line-height: 1.02; letter-spacing: -.045em; margin: 20px 0 18px; font-weight: 800; }
+    .hero h1 em { font-style: normal; background: linear-gradient(90deg, #fff, #fca5a5 60%, var(--red)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero p.lead { font-size: 18px; line-height: 1.6; color: #a1a1aa; max-width: 520px; margin: 0 0 30px; }
+    .hero p.lead b { color: #fff; font-weight: 600; }
+    .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+    .fine { font-size: 13px; color: #71717a; margin-top: 16px; }
+    .err-lp { color: #fca5a5; font-size: 14px; margin-top: 12px; min-height: 1em; }
+
+    /* Hero scene: a comment turns into an email */
+    .scene { position: relative; height: 470px; }
+    .yt { position: absolute; left: 0; top: 0; width: 100%; max-width: 470px; background: var(--night-2); border: 1px solid var(--night-line); border-radius: 18px; padding: 14px; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+    .yt .player { aspect-ratio: 16/9; border-radius: 12px; background: linear-gradient(135deg, #1f1f25, #2a1517); position: relative; overflow: hidden; display: grid; place-items: center; }
+    .yt .player b { font-size: 26px; letter-spacing: -.02em; color: #fff; text-align: center; line-height: 1.1; }
+    .yt .player b span { display: block; font-size: 12px; color: #fca5a5; letter-spacing: .1em; margin-bottom: 6px; font-weight: 700; }
+    .yt .player .pbar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--red); width: 38%; }
+    .yt .pin { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #1c1c21; font-size: 13px; color: #d4d4d8; }
+    .yt .pin b { color: #fff; }
+    .kw { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: #fff; background: #ef444433; border: 1px solid #ef444466; padding: 0 6px; border-radius: 5px; }
+    .cm { display: flex; gap: 10px; margin-top: 12px; padding: 4px 2px; }
+    .cm .av2 { width: 30px; height: 30px; border-radius: 50%; flex: none; background: linear-gradient(135deg, #60a5fa, #a78bfa); }
+    .cm .who { font-size: 12px; color: #a1a1aa; } .cm .who b { color: #e4e4e7; }
+    .cm .t { font-size: 14px; color: #f4f4f5; margin-top: 2px; min-height: 20px; white-space: nowrap; overflow: hidden; }
+    .typed { display: inline-block; overflow: hidden; vertical-align: bottom; white-space: nowrap; width: 0; border-right: 2px solid #fff; animation: type 9s steps(10) infinite; }
+    @keyframes type { 0%, 6% { width: 0; } 18%, 92% { width: 10.5ch; border-color: transparent; } 100% { width: 10.5ch; } }
+    .drop { position: absolute; width: 18px; height: 18px; left: 210px; top: 330px; background: var(--red); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 0 24px var(--red); opacity: 0; animation: drop 9s cubic-bezier(.5,0,.6,1) infinite; }
+    @keyframes drop { 0%, 22% { opacity: 0; transform: translate(0, 0) rotate(-45deg) scale(.4); } 26% { opacity: 1; transform: translate(0, 0) rotate(-45deg) scale(1); } 40% { opacity: 1; transform: translate(150px, 70px) rotate(-45deg) scale(.9); } 44%, 100% { opacity: 0; transform: translate(170px, 80px) rotate(-45deg) scale(.2); } }
+    .mail { position: absolute; right: 0; bottom: 0; width: 300px; background: #fff; color: var(--ink); border-radius: 16px; padding: 14px; box-shadow: 0 30px 70px rgba(0,0,0,.55); opacity: 0; transform: translateY(24px) scale(.96); animation: mail 9s ease infinite; }
+    @keyframes mail { 0%, 40% { opacity: 0; transform: translateY(24px) scale(.96); } 47%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-8px); } }
+    .mail .top { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+    .mail .top .gm { width: 28px; height: 28px; border-radius: 8px; background: #fef2f2; display: grid; place-items: center; font-weight: 800; color: var(--red); }
+    .mail .top b { color: var(--ink); font-size: 13px; display: block; }
+    .mail h4 { margin: 10px 0 4px; font-size: 15px; }
+    .mail p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.45; }
+    .mail .file { margin-top: 10px; display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 13px; font-weight: 600; }
+    .mail .file i { width: 26px; height: 32px; border-radius: 4px; background: var(--red); display: grid; place-items: center; color: #fff; font-style: normal; font-size: 9px; font-weight: 800; }
+    .mail .sent { margin-top: 8px; font-size: 11px; color: var(--green); }
+    .scroll-hint { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 1; font-size: 12px; color: #71717a; display: flex; gap: 8px; align-items: center; }
+    .scroll-hint i { width: 18px; height: 28px; border: 1.5px solid #52525b; border-radius: 10px; position: relative; }
+    .scroll-hint i::after { content: ""; position: absolute; left: 50%; top: 5px; width: 3px; height: 6px; border-radius: 3px; background: #a1a1aa; transform: translateX(-50%); animation: wheel 1.6s infinite; }
+    @keyframes wheel { to { transform: translate(-50%, 9px); opacity: 0; } }
+
+    /* Sections */
+    section.s { padding: 120px 0; }
+    .kicker { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--red); }
+    h2.big { font-size: clamp(32px, 4.4vw, 54px); letter-spacing: -.04em; line-height: 1.06; margin: 12px 0 16px; font-weight: 800; }
+    .sub2 { font-size: 18px; color: var(--muted); line-height: 1.6; max-width: 620px; margin: 0; }
+    .reveal { opacity: 0; transform: translateY(28px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1); }
+    .reveal.in { opacity: 1; transform: none; }
+    .d1 { transition-delay: .08s; } .d2 { transition-delay: .16s; } .d3 { transition-delay: .24s; }
+
+    /* Problem */
+    .problem { text-align: center; }
+    .swap { margin: 48px auto 0; display: grid; gap: 14px; justify-items: center; }
+    .swap .old { font-size: clamp(22px, 3vw, 34px); color: var(--faint); font-weight: 700; position: relative; }
+    .swap .old::after { content: ""; position: absolute; left: -4%; right: -4%; top: 52%; height: 3px; background: var(--red); transform: scaleX(0); transform-origin: left; transition: transform .7s .4s ease; }
+    .swap.in .old::after { transform: scaleX(1); }
+    .swap .new { font-size: clamp(30px, 4.6vw, 58px); font-weight: 800; letter-spacing: -.04em; }
+    .swap .new .kw2 { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--red); }
+    .problem .sub2 { margin: 28px auto 0; }
+
+    /* How it works: pinned while three steps play */
+    .how { background: #fafafa; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .pin-track { height: 300vh; position: relative; }
+    .pin-stage { position: sticky; top: 0; height: 100vh; display: grid; align-items: center; }
+    .pin-stage .wrap { display: grid; grid-template-columns: .9fr 1.1fr; gap: 64px; align-items: center; width: 100%; }
+    .steps { display: grid; gap: 10px; margin-top: 28px; }
+    .step { display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 16px 18px; border-radius: 14px; border: 1px solid transparent; transition: background .35s, border-color .35s, opacity .35s; opacity: .45; }
+    .step .n { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--line); color: var(--muted); transition: background .35s, color .35s; }
+    .step b { font-size: 17px; display: block; margin: 5px 0 4px; }
+    .step span { font-size: 14px; color: var(--muted); line-height: 1.5; }
+    .step.on { opacity: 1; background: #fff; border-color: var(--line); box-shadow: var(--shadow); }
+    .step.on .n { background: var(--red); color: #fff; }
+    .stage-art { position: relative; height: 440px; }
+    .frame { position: absolute; inset: 0; border-radius: 20px; background: #fff; border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(16,16,20,.1); padding: 22px; opacity: 0; transform: translateY(16px) scale(.98); transition: opacity .5s, transform .5s; pointer-events: none; }
+    .frame.on { opacity: 1; transform: none; }
+    .frame .fh { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); padding-bottom: 14px; border-bottom: 1px solid var(--line-2); margin-bottom: 16px; }
+    .frame .fh b { color: var(--ink); font-size: 15px; }
+    .row2 { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; font-size: 14px; }
+    .row2 .thumb { width: 86px; aspect-ratio: 16/9; border-radius: 7px; background: linear-gradient(135deg, #18181b, #3f1d1f); flex: none; }
+    .field2 { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .chipkw { display: inline-flex; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; background: #fef2f2; color: var(--red); border: 1px solid #fecaca; border-radius: 8px; padding: 6px 12px; font-size: 16px; }
+    .toggle { margin-left: auto; width: 38px; height: 22px; border-radius: 99px; background: var(--green); position: relative; flex: none; }
+    .toggle::after { content: ""; position: absolute; right: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; }
+    .clist2 { display: grid; gap: 12px; }
+    .c2 { display: flex; gap: 10px; font-size: 14px; }
+    .c2 .a { width: 32px; height: 32px; border-radius: 50%; flex: none; }
+    .c2 small { color: var(--muted); } .c2 p { margin: 2px 0 0; }
+    .c2.hit { background: #fef2f2; border-radius: 12px; padding: 10px; margin: 0 -10px; }
+    .tag-ok { display: inline-block; margin-top: 6px; font-size: 12px; color: var(--green); font-weight: 600; }
+
+    /* Viewer side */
+    .viewer .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center; }
+    .phone { width: 300px; margin: 0 auto; border-radius: 42px; background: #0b0b0d; padding: 12px; box-shadow: 0 40px 90px rgba(16,16,20,.25); }
+    .phone .scr { border-radius: 32px; background: #fff; padding: 34px 20px 26px; min-height: 520px; display: grid; align-content: start; gap: 12px; }
+    .phone .notch { width: 90px; height: 22px; border-radius: 99px; background: #0b0b0d; margin: -22px auto 8px; }
+    .phone h5 { margin: 6px 0 0; font-size: 20px; letter-spacing: -.02em; }
+    .phone .in { height: 42px; border: 1px solid var(--line); border-radius: 10px; display: flex; align-items: center; padding: 0 12px; font-size: 14px; color: var(--ink-2); }
+    .phone .go { height: 44px; border-radius: 10px; background: var(--ink); color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 14px; }
+    .phone .ok { display: flex; gap: 10px; align-items: center; padding: 12px; background: var(--green-soft); border: 1px solid #bbf7d0; border-radius: 12px; font-size: 13px; color: #166534; }
+    .bullets { list-style: none; padding: 0; margin: 28px 0 0; display: grid; gap: 16px; }
+    .bullets li { display: grid; grid-template-columns: 40px 1fr; gap: 14px; align-items: start; }
+    .bullets .ic { width: 40px; height: 40px; border-radius: 12px; background: #fef2f2; display: grid; place-items: center; font-size: 18px; }
+    .bullets b { display: block; margin-bottom: 2px; }
+    .bullets span { color: var(--muted); font-size: 15px; line-height: 1.5; }
+
+    /* Inbox */
+    .inbox-sec { background: var(--night); color: #fff; position: relative; overflow: hidden; }
+    .inbox-sec::before { content: ""; position: absolute; width: 800px; height: 800px; right: -300px; top: -200px; background: radial-gradient(closest-side, rgba(42,120,214,.25), transparent 70%); }
+    .inbox-sec .sub2 { color: #a1a1aa; }
+    .inbox-sec .kicker { color: #93c5fd; }
+    .mock { position: relative; margin-top: 52px; border-radius: 20px; background: #fff; color: var(--ink); padding: 22px; box-shadow: 0 40px 100px rgba(0,0,0,.5); }
+    .mock .headl { font-size: 18px; font-weight: 700; letter-spacing: -.01em; margin: 4px 0 12px; }
+    .mood2 { display: flex; gap: 2px; height: 10px; border-radius: 6px; overflow: hidden; }
+    .mood2 span { transform-origin: left; transform: scaleX(0); transition: transform 1s cubic-bezier(.2,.7,.2,1); }
+    .in .mood2 span { transform: scaleX(1); }
+    .ovg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
+    .ovg div { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fcfcfd; font-size: 13px; color: var(--ink-2); line-height: 1.45; }
+    .ovg div b { display: block; font-size: 12px; margin-bottom: 6px; color: var(--ink); }
+    .ovg .warn { border-color: #fecaca; background: #fff7f7; }
+    .tabs2 { display: flex; gap: 4px; margin-top: 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+    .tabs2 span { padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tabs2 span.on { color: var(--ink); border-bottom-color: var(--ink); }
+    .tabs2 em { font-style: normal; font-size: 11px; background: var(--line-2); border-radius: 99px; padding: 1px 7px; margin-left: 6px; }
+    .tabs2 .al em { background: var(--red-soft); color: var(--red); }
+    .rows3 { display: grid; }
+    .r3 { display: flex; gap: 10px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line-2); font-size: 14px; }
+    .r3 .a { width: 28px; height: 28px; border-radius: 50%; flex: none; }
+    .r3 p { margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .r3 .lk { color: var(--muted); font-size: 13px; }
+    .r3.spam p { transition: color .5s 1.4s, text-decoration-color .5s 1.4s; text-decoration: line-through transparent; }
+    .in .r3.spam p { color: var(--faint); text-decoration-color: var(--faint); }
+    .r3 .hid { font-size: 11px; border-radius: 99px; padding: 2px 8px; background: var(--line-2); color: var(--muted); opacity: 0; transition: opacity .4s 1.8s; }
+    .in .r3 .hid { opacity: 1; }
+    .risk2 { font-size: 11px; font-weight: 600; color: var(--red); background: var(--red-soft); border-radius: 99px; padding: 1px 7px; }
+    .dotc { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+    /* Trust */
+    .trust-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 48px; }
+    .tile { border: 1px solid var(--line); border-radius: 18px; padding: 22px; background: #fff; }
+    .tile .ic { width: 42px; height: 42px; border-radius: 12px; background: var(--line-2); display: grid; place-items: center; font-size: 20px; margin-bottom: 14px; }
+    .tile b { display: block; font-size: 16px; margin-bottom: 6px; }
+    .tile span { font-size: 14px; color: var(--muted); line-height: 1.55; }
+
+    /* Final CTA */
+    .final { background: var(--night); color: #fff; text-align: center; padding: 120px 0; position: relative; overflow: hidden; }
+    .final::before { content: ""; position: absolute; width: 900px; height: 600px; left: 50%; bottom: -380px; transform: translateX(-50%); background: radial-gradient(closest-side, rgba(239,68,68,.35), transparent 70%); }
+    .final .wrap { position: relative; }
+    .final .cta { justify-content: center; margin-top: 30px; }
+    .lp-foot { background: var(--night); border-top: 1px solid var(--night-line); color: #71717a; font-size: 13px; padding: 22px 0; }
+    .lp-foot .wrap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .lp-foot a { color: #a1a1aa; }
+
+    @media (max-width: 920px) {
+      .lp-nav nav { display: none; }
+      .lp-nav .wrap { justify-content: space-between; }
+      .hero { padding: 116px 0 90px; }
+      .hero .wrap, .pin-stage .wrap, .viewer .wrap { grid-template-columns: 1fr; gap: 40px; }
+      .scene { height: 440px; max-width: 470px; }
+      .mail { width: 260px; }
+      .pin-track { height: auto; }
+      .pin-stage { position: static; height: auto; padding: 90px 0; }
+      .stage-art { height: 420px; }
+      .ovg, .trust-grid { grid-template-columns: 1fr 1fr; }
+      section.s { padding: 90px 0; }
+      .scroll-hint { display: none; }
+    }
+    @media (max-width: 560px) { .ovg, .trust-grid { grid-template-columns: 1fr; } .drop { left: 150px; } }
+    @media (prefers-reduced-motion: reduce) {
+      .typed, .drop, .mail, .scroll-hint i::after { animation: none; }
+      .typed { width: 10.5ch; border: 0; } .mail { opacity: 1; transform: none; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body class="lp">
+<div class="progress" id="progress"></div>
+
+<header class="lp-nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="logo">▶</span>CommentDrop</a>
+    <nav aria-label="Sections"><a href="#how">How it works</a><a href="#viewers">For viewers</a><a href="#inbox">Comments inbox</a><a href="#trust">Trust</a></nav>
+    <a class="btn dark" href="/api/auth/google" data-signin>Sign in</a>
+  </div>
+</header>
+
+<main>
+  <!-- 1 · The drop -->
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="eyebrow-pill"><i></i>For YouTube creators</span>
+        <h1>Every giveaway becomes <em>a comment.</em></h1>
+        <p class="lead">Viewers comment a keyword like <span class="kw">CHEATSHEET</span> under your video. CommentDrop emails them your file <b>from your own Gmail</b>, then shows you what your whole audience is telling you.</p>
+        <div class="cta">
+          <a class="gbtn" href="/api/auth/google" data-signin>
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
+            <span>Creators: continue with Google</span></a>
+          <a class="ghost" href="/join">I'm a viewer</a>
+        </div>
+        <p class="fine">Connect your channel and Gmail in one Google step.</p>
+        <p class="err-lp" id="err"></p>
+      </div>
+
+      <div class="scene" aria-label="A viewer comments CHEATSHEET and the file arrives by email">
+        <div class="yt">
+          <div class="player"><b><span>NEW VIDEO</span>10 prompts that<br>save me hours</b><div class="pbar"></div></div>
+          <div class="pin">📌 <b>Pinned:</b> Comment <span class="kw">CHEATSHEET</span> and I'll email you the PDF.</div>
+          <div class="cm"><div class="av2"></div><div><div class="who"><b>@maya.codes</b> · just now</div><div class="t"><span class="typed">CHEATSHEET</span></div></div></div>
+        </div>
+        <div class="drop" aria-hidden="true"></div>
+        <div class="mail">
+          <div class="top"><div class="gm">M</div><div><b>Arjun (via Gmail)</b>to maya · now</div></div>
+          <h4>Here's your cheat sheet 🎁</h4>
+          <p>Thanks for commenting on “10 prompts that save me hours”. Here it is, as promised.</p>
+          <div class="file"><i>PDF</i>prompt-cheatsheet.pdf</div>
+          <div class="sent">✓ Sent from the creator's own Gmail</div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-hint"><i></i>Scroll</div>
+  </section>
+
+  <!-- 2 · The problem -->
+  <section class="s problem">
+    <div class="wrap">
+      <div class="kicker reveal">The problem</div>
+      <h2 class="big reveal d1">Your best material is stuck<br>behind a link.</h2>
+      <div class="swap reveal d2" id="swap">
+        <div class="old">“Link in the description ↓”</div>
+        <div class="new">Comment <span class="kw2">CHEATSHEET</span></div>
+      </div>
+      <p class="sub2 reveal d3">Instagram creators grow with “comment GUIDE and I'll send it”. On YouTube, the people who want your template, checklist or code have to hunt for a link. CommentDrop lets them just ask, right where they already are.</p>
+    </div>
+  </section>
+
+  <!-- 3 · How it works (pinned) -->
+  <section class="how" id="how">
+    <div class="pin-track" id="pinTrack">
+      <div class="pin-stage">
+        <div class="wrap">
+          <div>
+            <div class="kicker">How it works</div>
+            <h2 class="big">Set it once.<br>Every comment sends it.</h2>
+            <div class="steps" id="steps">
+              <div class="step on"><div class="n">1</div><div><b>Pick a video, a keyword and a file</b><span>Upload your PDF or template and choose the word viewers comment.</span></div></div>
+              <div class="step"><div class="n">2</div><div><b>Viewers comment the keyword</b><span>CommentDrop watches your video's new comments every minute.</span></div></div>
+              <div class="step"><div class="n">3</div><div><b>The file lands in their inbox</b><span>Sent from your Gmail, with your name on it. Each viewer gets it once.</span></div></div>
+            </div>
+          </div>
+          <div class="stage-art">
+            <div class="frame on" data-frame="0">
+              <div class="fh"><b>New automation</b><span>Automations</span></div>
+              <div class="field2">Video</div>
+              <div class="row2"><div class="thumb"></div><div><b>10 prompts that save me hours</b><div class="small muted">Published 2 days ago</div></div></div>
+              <div class="field2" style="margin-top:16px">Keyword viewers comment</div>
+              <div class="chipkw">CHEATSHEET</div>
+              <div class="field2" style="margin-top:16px">Material</div>
+              <div class="row2"><span style="font-size:22px">📄</span><b>prompt-cheatsheet.pdf</b><span class="small muted">1.2 MB</span><div class="toggle" title="On"></div></div>
+            </div>
+            <div class="frame" data-frame="1">
+              <div class="fh"><b>Comments · 10 prompts that save me hours</b><span>live</span></div>
+              <div class="clist2">
+                <div class="c2"><div class="a" style="background:#fde68a"></div><div><small>@devdiaries · 3 min ago</small><p>The 7th prompt alone was worth it</p></div></div>
+                <div class="c2 hit"><div class="a" style="background:linear-gradient(135deg,#60a5fa,#a78bfa)"></div><div><small>@maya.codes · just now</small><p><span class="kw" style="color:var(--red);background:#fee2e2;border-color:#fecaca">CHEATSHEET</span></p><span class="tag-ok">✓ Keyword matched · sending</span></div></div>
+                <div class="c2"><div class="a" style="background:#bbf7d0"></div><div><small>@raj.builds · 1 min ago</small><p>cheatsheet please 🙏</p><span class="tag-ok">✓ Keyword matched · sent</span></div></div>
+                <div class="c2"><div class="a" style="background:#fecaca"></div><div><small>@lena · 8 min ago</small><p>Can you do one for Claude Code?</p></div></div>
+              </div>
+            </div>
+            <div class="frame" data-frame="2">
+              <div class="fh"><b>Inbox · maya@example.com</b><span>Gmail</span></div>
+              <div class="row2" style="background:#fef2f2;border-color:#fecaca"><div class="mail" style="position:static;opacity:1;transform:none;animation:none;box-shadow:none;width:100%;padding:0;background:transparent">
+                <div class="top"><div class="gm">A</div><div><b>Arjun</b>to me · now</div></div>
+                <h4>Here's your cheat sheet 🎁</h4>
+                <p>Thanks for commenting on “10 prompts that save me hours”. Here it is, as promised.</p>
+                <div class="file" style="background:#fff"><i>PDF</i>prompt-cheatsheet.pdf</div>
+              </div></div>
+              <div class="row2"><span style="font-size:18px">📬</span><div><b>Every request in one list</b><div class="small muted">Who asked, when it was sent, and what bounced</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · The viewer's side -->
+  <section class="s viewer" id="viewers">
+    <div class="wrap">
+      <div class="phone reveal" aria-hidden="true">
+        <div class="scr">
+          <div class="notch"></div>
+          <span class="brand" style="font-size:14px"><span class="logo" style="width:20px;height:20px;font-size:10px">▶</span>CommentDrop</span>
+          <h5>Get creators' files by email</h5>
+          <div class="small muted">Link your YouTube once. Then just comment.</div>
+          <div class="in">@maya.codes</div>
+          <div class="in">maya@example.com</div>
+          <div class="go">Link my YouTube</div>
+          <div class="ok"><span>✓</span><div><b>Linked</b><br>Comment a creator's keyword and it lands here.</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="kicker reveal">For viewers</div>
+        <h2 class="big reveal d1">Ask in a comment.<br>Get it in your inbox.</h2>
+        <p class="sub2 reveal d2">Viewers link their YouTube @handle and email one time. After that, any keyword they comment on a CommentDrop video brings the file straight to them.</p>
+        <ul class="bullets reveal d3">
+          <li><div class="ic">🔗</div><div><b>One-time link</b><span>No app to install, no account to manage. A handle and an email.</span></div></li>
+          <li><div class="ic">💌</div><div><b>From the creator, not a stranger</b><span>The email comes from the creator's own Gmail, with their name on it.</span></div></li>
+          <li><div class="ic">🎯</div><div><b>Only what they asked for</b><span>They get the file they commented for. Nothing else is sent.</span></div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · Comments inbox -->
+  <section class="s inbox-sec" id="inbox">
+    <div class="wrap" style="position:relative">
+      <div class="kicker reveal">Comments inbox</div>
+      <h2 class="big reveal d1">More comments.<br>Now read them all in a minute.</h2>
+      <p class="sub2 reveal d2">Claude reads every comment on your video and tells you what your audience loves, what to improve and what they want next. Spam and threats get their own tab, one click from gone.</p>
+      <div class="mock reveal d3" id="mock">
+        <div class="eyebrow">What your audience is saying · 214 comments</div>
+        <div class="headl">Viewers love the practical prompts and want a version for coding agents next.</div>
+        <div class="mood2"><span class="m-positive" style="width:46%"></span><span class="m-suggestion" style="width:18%"></span><span class="m-neutral" style="width:22%"></span><span class="m-negative" style="width:7%"></span><span class="m-spam" style="width:7%"></span></div>
+        <div class="ovg">
+          <div><b>💙 What they love</b>The prompts are ready to copy and paste.</div>
+          <div><b>🛠 What to improve</b>The middle section moves too fast.</div>
+          <div><b>💡 What they want next</b>A cheat sheet for coding agents.</div>
+          <div class="warn"><b>⚠️ Watch out</b>An account copying your name offers a "prize".</div>
+        </div>
+        <div class="tabs2"><span class="on">All<em>214</em></span><span>Positive<em>98</em></span><span>Neutral<em>47</em></span><span>Suggestions<em>39</em></span><span>Negative<em>15</em></span><span class="al">Spam &amp; threats<em>15</em></span></div>
+        <div class="rows3">
+          <div class="r3"><i class="dotc m-positive"></i><div class="a" style="background:#fde68a"></div><p><b>@devdiaries</b> The 7th prompt alone was worth it</p><span class="lk">↗</span></div>
+          <div class="r3"><i class="dotc m-suggestion"></i><div class="a" style="background:#fecaca"></div><p><b>@lena</b> Can you do one for Claude Code?</p><span class="lk">↗</span></div>
+          <div class="r3 spam"><i class="dotc m-spam"></i><div class="a" style="background:#d4d4d8"></div><p><b>@Arjun.0fficial</b> You won! Message me on Telegram to claim</p><span class="risk2">Impersonator</span><span class="hid">Hidden</span></div>
+        </div>
+      </div>
+      <p class="small reveal" style="color:#71717a;margin-top:14px">Sample data for illustration.</p>
+    </div>
+  </section>
+
+  <!-- 6 · Trust -->
+  <section class="s" id="trust">
+    <div class="wrap">
+      <div class="kicker reveal">Built to be trusted</div>
+      <h2 class="big reveal d1">Your channel. Your Gmail.<br>Your call on every action.</h2>
+      <div class="trust-grid">
+        <div class="tile reveal"><div class="ic">✉️</div><b>Sent from your Gmail</b><span>Material goes out from your own address, so replies come back to you.</span></div>
+        <div class="tile reveal d1"><div class="ic">✅</div><b>You approve every action</b><span>Replies, hiding and bans happen only when you confirm them.</span></div>
+        <div class="tile reveal d2"><div class="ic">🤝</div><b>Viewers ask, they get it</b><span>Nothing is locked behind a subscribe. People who want your file simply ask.</span></div>
+        <div class="tile reveal d3"><div class="ic">🔐</div><b>Official Google sign-in</b><span>Uses the YouTube and Gmail APIs with the permissions you grant. <a href="/privacy" style="color:var(--blue)">Privacy policy</a></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="final">
+    <div class="wrap">
+      <h2 class="big reveal">Turn your next video's<br>comments into a list of fans.</h2>
+      <p class="sub2 reveal d1" style="margin:0 auto;color:#a1a1aa">Connect your channel, pick a keyword, upload a file.</p>
+      <div class="cta reveal d2">
+        <a class="gbtn" href="/api/auth/google" data-signin><span>Creators: continue with Google</span></a>
+        <a class="ghost" href="/join">I'm a viewer: link my YouTube</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="lp-foot"><div class="wrap"><span>CommentDrop</span><a href="/privacy">Privacy policy</a></div></footer>
+
+<script>
+  // Sign-in errors and an already-signed-in creator.
+  const e = new URLSearchParams(location.search).get('error');
+  if (e) document.getElementById('err').textContent = `Sign-in didn't finish: ${e}`;
+  fetch('/api/me').then((r) => {
+    if (!r.ok) return;
+    document.querySelectorAll('[data-signin]').forEach((a) => {
+      a.href = '/dashboard';
+      const label = a.querySelector('span') || a;
+      label.textContent = a.classList.contains('btn') ? 'Open dashboard' : 'Open your dashboard';
+    });
+  });
+
+  // Reveal on scroll.
+  const io = new IntersectionObserver((entries) => entries.forEach((en) => {
+    if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+  }), { threshold: 0.2 });
+  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+  // Nav turns solid past the hero; progress bar; pinned steps follow scroll.
+  const nav = document.getElementById('nav');
+  const bar = document.getElementById('progress');
+  const track = document.getElementById('pinTrack');
+  const steps = [...document.querySelectorAll('.step')];
+  const frames = [...document.querySelectorAll('.frame')];
+  let current = 0;
+  const show = (i) => {
+    if (i === current) return;
+    current = i;
+    steps.forEach((s, k) => s.classList.toggle('on', k === i));
+    frames.forEach((f, k) => f.classList.toggle('on', k === i));
+  };
+  function onScroll() {
+    const y = scrollY;
+    nav.classList.toggle('solid', y > innerHeight * 0.75);
+    bar.style.transform = `scaleX(${y / Math.max(1, document.documentElement.scrollHeight - innerHeight)})`;
+    if (innerWidth > 920) {
+      const r = track.getBoundingClientRect();
+      const p = Math.min(0.999, Math.max(0, -r.top / (r.height - innerHeight)));
+      show(Math.floor(p * 3));
+    }
+  }
+  addEventListener('scroll', onScroll, { passive: true });
+  addEventListener('resize', onScroll);
+  onScroll();
+  // On phones the pin is off; tapping a step shows its frame.
+  steps.forEach((s, k) => s.addEventListener('click', () => show(k)));
+  // Without the pin, cycle the frames on small screens.
+  setInterval(() => { if (innerWidth <= 920) show((current + 1) % 3); }, 3500);
+</script>
+</body>
+</html>
