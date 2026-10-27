@@ -62,13 +62,13 @@ Work in this order.
 
 3. Give each comment exactly one category:
 - positive: praise, thanks, enjoyment.
-- neutral: questions, plain remarks, anything without a clear feeling.
-- suggestion: an idea, request or improvement for the creator or future videos.
+- neutral: questions about this video, plain remarks, giveaway-keyword requests, anything without a clear feeling.
+- suggestion: an idea, request or improvement for the creator or future videos, including questions like "can you explain X the same way?", "make a video on Y", "please cover Z". If a comment both praises and asks for more, pick the main intent.
 - negative: genuine criticism or complaint about the video or creator (not spam, not a threat).
 - spam: scams, fake giveaways, crypto or investment pitches, "message me on Telegram/WhatsApp", impersonators of the creator (look-alike names, "reply to claim your prize"), bots, self-promotion, gibberish.
 - threat: harassment, hate, threats of violence or doxxing aimed at the creator or anyone else.
 Risk is 'none' unless the category is spam or threat; then pick the closest: scam, impersonation, self_promo, bot, harassment, hate or threat.
-Set needs_review when you genuinely can't tell: sarcasm that could be praise or an insult, a link that could be helpful or spam, an account that might be the creator's friend or an impersonator, a joke that might be a threat. Give your best category anyway. Most comments should not need review.
+Set needs_review ONLY when you genuinely can't tell whether a comment is spam, a scam, an impersonator or a threat: a link that could be helpful or spam, an account that might be the creator's friend or an impersonator, a joke that might be a threat. Short, odd or one-word comments are NOT a reason for review; give them your best category. A comment that is (or contains) one of the creator's giveaway keywords is a viewer asking for the free file: category neutral (or positive if they also praise), never spam, never needs_review. Most videos should have zero or one comment needing review.
 
 4. Group comments that ask or say the same thing, so the creator can answer each group once. Use between 1 and 8 groups, put every comment in exactly one group, and prefer fewer, meaningful groups over many tiny ones. Scams, self-promotion and gibberish go in a "spam" group.
 
@@ -89,7 +89,7 @@ function videoContext(video) {
   return `Video title: ${video.title}${tags}${desc}`;
 }
 
-export async function analyzeComments({ video, creatorName, comments, creatorComments = [] }) {
+export async function analyzeComments({ video, creatorName, comments, creatorComments = [], keywords = [] }) {
   // Short refs instead of YouTube's long ids keep the output small; mapped back below.
   const refs = new Map(comments.map((c, i) => [`c${i + 1}`, c]));
   const listing = [...refs].map(([ref, c]) => `${ref} | ${c.authorName}: ${c.text.replace(/\s+/g, ' ').slice(0, 600)}`).join('\n');
@@ -104,7 +104,7 @@ export async function analyzeComments({ video, creatorName, comments, creatorCom
     system: SYSTEM,
     messages: [{
       role: 'user',
-      content: `Creator: ${creatorName}\n${videoContext(video)}\n${pinned}\n${comments.length} viewer comments:\n${listing}`,
+      content: `Creator: ${creatorName}\n${videoContext(video)}\n${pinned}${keywords.length ? `\nGiveaway keywords on this video (viewers comment these to get a free file; treat them as normal requests): ${keywords.join(', ')}\n` : ''}\n${comments.length} viewer comments:\n${listing}`,
     }],
   });
 
@@ -144,7 +144,8 @@ export async function analyzeComments({ video, creatorName, comments, creatorCom
     usage: response.usage,
     comments: [...refs].map(([ref, c]) => {
       const j = { sentiment: 'neutral', tone: 'matter-of-fact', ...judged.get(ref) };
-      const category = j.category || fallbackCategory(j);
+      let category = j.category || fallbackCategory(j);
+      if (category === 'neutral' && j.tone === 'suggestion') category = 'suggestion'; // keep bucket and tone consistent
       return {
         ...c, sentiment: j.sentiment, tone: j.tone, category, risk: (category === 'spam' || category === 'threat') && j.risk ? j.risk : 'none',
         needsReview: Boolean(j.needs_review), reviewReason: j.needs_review ? String(j.review_reason || '') : '',

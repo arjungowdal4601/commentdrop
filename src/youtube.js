@@ -152,7 +152,7 @@ export async function channelOverview(channelId) {
 const overviewCache = new Map(); // channel id -> { at, data }
 export async function cachedOverview(channelId, refresh = false) {
   const hit = overviewCache.get(channelId);
-  if (hit && !refresh && Date.now() - hit.at < 10 * 60_000) return hit.data;
+  if (hit && !refresh && Date.now() - hit.at < 30_000) return hit.data;
   const data = await channelOverview(channelId);
   overviewCache.set(channelId, { at: Date.now(), data });
   return data;

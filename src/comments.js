@@ -1,8 +1,9 @@
 import express from 'express';
 import { q, one } from './db.js';
-import { allComments, cachedOverview, getVideo, parseVideoId, replyToComment, moderateComments, quota } from './youtube.js';
+import { allComments, latestComments, cachedOverview, getVideo, parseVideoId, replyToComment, moderateComments, quota } from './youtube.js';
 import { analyzeComments, polishReply, fallbackCategory, CATEGORIES } from './analyze.js';
 import { requireCreator, canReply, accessToken } from './auth.js';
+import { matchesKeyword } from './watcher.js';
 
 // Comments page: Claude reads the video, then groups its comments by intent
 // and sentiment, and the creator answers a whole group with one reply.
@@ -35,13 +36,21 @@ async function view(creatorId, videoId) {
   ]);
   const replies = new Map(replyRows.map((r) => [r.comment_id, r]));
   const mods = new Map(modRows.map((r) => [r.comment_id, r]));
+  // A comment asking for this video's giveaway (its keyword) is a normal request:
+  // never spam, never something for the creator to review.
+  const keywords = (await q('select keyword from campaigns where creator_id = $1 and video_id = $2', [creatorId, videoId])).map((r) => r.keyword);
+  const asksForFile = (c) => keywords.some((k) => matchesKeyword(k, c.text));
   const byId = new Map(a.comments.map((c) => {
-    const category = c.category || fallbackCategory(c); // old analyses have no category/risk
+    let category = c.category || fallbackCategory(c); // old analyses have no category/risk
+    const request = asksForFile(c);
+    if (request && ['spam', 'threat', 'negative'].includes(category)) category = 'neutral';
+    if (!request && category === 'neutral' && c.tone === 'suggestion') category = 'suggestion'; // a request for new content is a suggestion
     return [c.id, {
       tone: 'matter-of-fact',
       ...c,
       category,
-      risk: c.risk || 'none',
+      ...(request ? { needsReview: false, reviewReason: '', askedForFile: true } : {}),
+      risk: request ? 'none' : c.risk || 'none',
       url: `https://www.youtube.com/watch?v=${videoId}&lc=${c.id}`,
       authorUrl: c.authorChannelId ? `https://www.youtube.com/channel/${c.authorChannelId}` : null,
       reply: replies.get(c.id) || null,
@@ -79,6 +88,18 @@ commentsRouter.get('/api/comments/analysed', wrap(async (req, res) => {
     from analyses where creator_id = $1`, [req.creator.id]));
 }));
 
+// Newest comments straight from YouTube, so the inbox shows new ones without a
+// reload. 1 quota unit; shared for 4 s so several open tabs don't multiply it.
+const latestCache = new Map();
+commentsRouter.get('/api/comments/youtube/:id/latest', wrap(async (req, res) => {
+  const id = parseVideoId(req.params.id);
+  if (!id) throw new Error('Not a valid YouTube video');
+  if ((await one(`select v from app_config where k = 'live_paused'`))?.v === 'true') return res.json([]); // paused: no YouTube calls
+  const hit = latestCache.get(id);
+  if (!hit || Date.now() - hit.at > 4000) latestCache.set(id, { at: Date.now(), data: await latestComments(id) });
+  res.json(latestCache.get(id).data);
+}));
+
 commentsRouter.get('/api/comments/youtube/:id', wrap(async (req, res) => {
   res.json(await view(req.creator.id, req.params.id));
 }));
@@ -108,7 +129,8 @@ commentsRouter.post('/api/comments/youtube/:id/analyze', wrap(async (req, res) =
   const comments = all.filter((cm) => !own(cm));
   if (!comments.length) throw new Error('This video has no viewer comments yet');
 
-  const result = await analyzeComments({ video, creatorName: c.channel_title || c.name || 'the creator', comments, creatorComments: all.filter(own) });
+  const keywords = (await q('select keyword from campaigns where creator_id = $1 and video_id = $2', [c.id, id])).map((r) => r.keyword);
+  const result = await analyzeComments({ video, creatorName: c.channel_title || c.name || 'the creator', comments, creatorComments: all.filter(own), keywords });
   await q(`insert into analyses (creator_id, video_id, video_title, video_thumb, data) values ($1, $2, $3, $4, $5)
     on conflict (creator_id, video_id) do update set video_title = excluded.video_title, video_thumb = excluded.video_thumb,
       data = excluded.data, created_at = now()`,

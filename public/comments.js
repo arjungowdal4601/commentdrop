@@ -49,6 +49,7 @@ const CAT = {
   negative: { label: 'Negative', icon: '👎' },
   spam: { label: 'Spam', icon: '🚫' },
   threat: { label: 'Threat', icon: '⚠️' },
+  new: { label: 'New · not sorted yet', icon: '🆕' },
 };
 const TABS = [
   ['all', 'All'], ['positive', 'Positive'], ['neutral', 'Neutral'], ['suggestion', 'Suggestions'], ['negative', 'Negative'], ['danger', 'Spam & threats'],
@@ -132,19 +133,22 @@ async function openVideo(videoId) {
 }
 function setAnalysis(a, keep = false) {
   analysis = a;
+  const known = new Set((a?.comments || []).map((c) => c.id));
+  fresh = fresh.filter((c) => !known.has(c.id));
   if (!keep) Object.assign(ui, { view: 'all', tab: 'all', selected: null, query: '', only: null, onlyLabel: '' });
   ui.checked.clear();
   render();
 }
 
+let fresh = []; // comments posted since the last analysis, fetched live
 const allComments = () => {
   if (!analysis) return [];
   const flat = analysis.comments || analysis.groups.flatMap((g) => g.comments);
-  return [...flat].sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
+  return [...fresh, ...flat].sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
 };
 const groupOf = (id) => analysis.groups.find((g) => g.comments.some((c) => c.id === id));
 const counts = () => {
-  const out = { all: 0, positive: 0, neutral: 0, suggestion: 0, negative: 0, spam: 0, threat: 0, danger: 0 };
+  const out = { all: 0, positive: 0, neutral: 0, suggestion: 0, negative: 0, spam: 0, threat: 0, new: 0, danger: 0 };
   for (const c of allComments()) {
     out.all++;
     out[catOf(c)]++;
@@ -178,8 +182,7 @@ function renderOverview() {
       ${col('appreciation', '💙 What they love', ov.appreciation, '')}
       ${col('improvements', '🛠 What to improve', ov.improvements, '')}
       ${col('requests', '💡 What they want next', ov.requests, '')}
-      ${col('warnings', '⚠️ Watch out', ov.warnings, ov.warnings?.length ? 'warn' : '')}
-    </div>` : '<p class="small muted ov-old">Re-analyze this video to get the full overview: what viewers love, what to improve, what they want next and what to watch out for.</p>'}`;
+    </div>` : '<p class="small muted ov-old">Re-analyze this video to get the full overview: what viewers love, what to improve and what they want next.</p>'}`;
 }
 
 // ---- Inbox ------------------------------------------------------------------------
@@ -266,7 +269,8 @@ function renderDetail() {
     ${hidden(c) ? `<div class="dt-note gone">Hidden from your channel${c.moderation.action === 'ban' ? ' and the author is banned' : ''}. YouTube can't bring it back through the API.</div>`
       : c.moderation?.status === 'failed' ? `<div class="dt-note fail">Couldn't hide: ${esc(c.moderation.error)}</div>` : ''}
     ${c.reply ? `<div class="dt-note ${c.reply.status === 'sent' ? 'ok' : 'fail'}">${c.reply.status === 'sent' ? `✓ You replied: “${esc(c.reply.text)}”` : `✗ Reply failed: ${esc(c.reply.error)}`}</div>` : ''}
-    ${hidden(c) || danger || c.reply?.status === 'sent' ? '' : `
+    ${c.fresh ? '<div class="dt-note">New since the last analysis. Re-analyze to sort it, group it and reply.</div>' : ''}
+    ${hidden(c) || danger || c.fresh || c.reply?.status === 'sent' ? '' : `
     <div class="dt-reply">
       <label class="small" for="replyBox"><b>Reply</b></label>
       <textarea class="input" id="replyBox" maxlength="900" placeholder="Type a reply, or let AI write one">${esc(draft)}</textarea>
@@ -303,7 +307,8 @@ function render() {
 const reviewQueue = () => allComments().filter((c) => c.needsReview && !hidden(c));
 function renderViews() {
   const n = { all: allComments().length, groups: analysis.groups.length, review: reviewQueue().length };
-  $('#views').innerHTML = [['all', 'All comments'], ['groups', 'Groups'], ['review', 'Needs review']].map(([k, label]) => `<button class="ix-view ${ui.view === k ? 'on' : ''} ${k === 'review' && n.review ? 'alert' : ''}" role="tab" data-view="${k}" type="button">${label}<span class="ct">${n[k]}</span></button>`).join('');
+  $('#views').innerHTML = [['all', 'All comments'], ['groups', 'Groups'], ['review', 'Needs review']].map(([k, label]) => `<button class="ix-view ${ui.view === k ? 'on' : ''} ${k === 'review' && n.review ? 'alert' : ''}" role="tab" data-view="${k}" type="button">${label}<span class="ct">${n[k]}</span></button>`).join('')
+    + (fresh.length ? `<button class="ix-new" data-reanalyze type="button">🆕 ${fresh.length} new comment${fresh.length > 1 ? 's' : ''} · Re-analyze</button>` : '');
 }
 function renderInbox() {
   renderViews();
@@ -412,6 +417,7 @@ $('#search').oninput = (e) => { ui.query = e.target.value; renderList(); renderT
 $('.ix').addEventListener('click', async (e) => {
   const t = e.target;
   if (t.closest('.ix-open')) return;
+  if (t.closest('[data-reanalyze]')) return $('#analyzeBtn').click();
   if (t.closest('[data-view]')) { ui.view = t.closest('[data-view]').dataset.view; ui.only = null; return renderInbox(); }
   const gi = (attr) => analysis.groups.find((g) => g.index === Number(t.closest(`[${attr}]`).getAttribute(attr)));
   if (t.closest('[data-greply]')) {
@@ -586,3 +592,30 @@ $('#cfGo').onclick = async () => {
 if (new URLSearchParams(location.search).get('google') === 'connected') toast('YouTube connected, you can reply now');
 loadStatus().catch(() => {});
 route();
+
+// ---- Live: new comments and counts show up without a reload (demo: every 5 s) ----
+let myChannel = null; // the creator's own comments are context, never "new"
+api('/api/me').then((m) => { myChannel = m.channelId; }).catch(() => {});
+async function pollFresh() {
+  if (document.hidden || !analysis || !currentId || $('#videoView').hidden) return;
+  const latest = await api(`/api/comments/youtube/${encodeURIComponent(currentId)}/latest`).catch(() => null);
+  if (!latest || currentId !== analysis.video.id) return;
+  const known = new Set(allComments().map((c) => c.id));
+  const add = latest.filter((c) => !known.has(c.id) && (!myChannel || c.authorChannelId !== myChannel))
+    .map((c) => ({ ...c, fresh: true, category: 'new', risk: 'none', url: `https://www.youtube.com/watch?v=${currentId}&lc=${c.id}`,
+      authorUrl: c.authorChannelId ? `https://www.youtube.com/channel/${c.authorChannelId}` : null }));
+  if (!add.length) return;
+  fresh = [...add, ...fresh];
+  renderOverview();
+  renderInbox();
+  toast(`${add.length} new comment${add.length > 1 ? 's' : ''}`);
+}
+let listSig = '';
+async function pollList() {
+  if (document.hidden || $('#listView').hidden) return;
+  const sig = JSON.stringify(await api('/api/yt/videos').catch(() => null));
+  if (sig !== listSig && listSig) loadVideos().catch(() => {});
+  listSig = sig;
+}
+setInterval(pollFresh, 5000);
+setInterval(pollList, 5000);

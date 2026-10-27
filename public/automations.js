@@ -342,11 +342,16 @@
   };
 
   // ---- Boot + polling ----
-  async function refresh(withVideos) {
+  let lastSig = '';
+  async function refresh(withVideos, silent) {
     const jobs = [loadCampaigns(), loadActivity()];
     if (withVideos) jobs.push(loadVideos());
     const results = await Promise.allSettled(jobs);
     results.forEach((r) => r.status === 'rejected' && console.error(r.reason));
+    // Background refresh: redraw only when something changed, so nothing flickers.
+    const sig = JSON.stringify([campaigns, activity, videos]);
+    if (silent && sig === lastSig) return;
+    lastSig = sig;
     renderAll();
   }
 
@@ -355,5 +360,6 @@
     if (failed) toast(failed.reason?.message || 'Could not load everything');
     renderAll();
   });
-  setInterval(() => { if (!document.hidden) refresh(false); }, 20000);
+  // Live for the demo: counts and requests update every 3 s in the background.
+  setInterval(() => { if (!document.hidden && !$('#amModal').classList.contains('open')) refresh(true, true); }, 3000);
 })();

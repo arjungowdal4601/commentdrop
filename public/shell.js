@@ -14,6 +14,7 @@
     <a class="brand" href="/"><span class="logo">▶</span>CommentDrop</a>
     <nav class="nav">${link('dashboard', '/dashboard', 'Dashboard')}${link('automations', '/automations', 'Automations')}${link('comments', '/comments', 'Comments')}</nav>
     <div class="side-foot">
+      <button class="live-btn" id="liveBtn" type="button" aria-label="Pause or resume live YouTube checks"></button>
       <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch light or dark theme"></button>
       <div class="acct" id="acct"></div>
     </div>`;
@@ -29,8 +30,29 @@
     root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
     try { localStorage.setItem('cd.theme', root.dataset.theme); } catch {}
     paintTheme();
+
   };
   paintTheme();
+
+  // Pause / resume every live YouTube check (saves quota). Shared by all pages.
+  const liveBtn = document.getElementById('liveBtn');
+  const paintLive = (paused) => {
+    liveBtn.dataset.paused = String(paused);
+    liveBtn.innerHTML = paused
+      ? '<i class="ld off"></i>Paused · Resume'
+      : '<i class="ld on"></i>Live · Pause';
+    liveBtn.title = paused ? 'Live checks are paused: no comments are checked and no files are sent' : 'Checking comments and sending files live';
+  };
+  fetch('/api/live').then((r) => r.ok && r.json()).then((d) => d && paintLive(d.paused)).catch(() => {});
+  liveBtn.onclick = async () => {
+    const paused = liveBtn.dataset.paused !== 'true';
+    liveBtn.disabled = true;
+    try {
+      const r = await fetch('/api/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paused }) });
+      const d = await r.json();
+      paintLive(d.paused);
+    } finally { liveBtn.disabled = false; }
+  };
 
   fetch('/api/me').then((r) => (r.status === 401 ? (location.href = '/') : r.json())).then((me) => {
     if (!me || !me.email) return;

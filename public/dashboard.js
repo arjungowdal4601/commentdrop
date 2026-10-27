@@ -42,14 +42,20 @@ function render(o) {
   }).join('') : '<tr><td colspan="4" class="muted">No public videos on this channel yet.</td></tr>';
 }
 
-async function load(refresh) {
+let lastSig = '';
+async function load(refresh, silent) {
   try {
     const res = await fetch(`/api/overview${refresh ? '?refresh=1' : ''}`);
     if (res.status === 401) { location.href = '/'; return; }
     const o = await res.json();
     if (!res.ok) throw new Error(o.error || 'Could not load your channel');
+    // Redraw only when a number changed, so the background refresh never flickers.
+    const sig = JSON.stringify([o.totals, o.videos]);
+    if (sig === lastSig) return;
+    lastSig = sig;
     render(o);
   } catch (err) {
+    if (silent) return;
     $('#videos').innerHTML = `<tr><td colspan="4" class="err">${esc(err.message)}</td></tr>`;
     toast(err.message);
   }
@@ -68,3 +74,5 @@ $('#refresh').onclick = async () => {
   toast('Updated from YouTube');
 };
 load();
+// Live for the demo: documents sent and comments update every 3 s in the background.
+setInterval(() => { if (!document.hidden) load(false, true); }, 3000);

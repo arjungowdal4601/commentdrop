@@ -40,6 +40,37 @@ export function startGoogle(req, res) {
   res.redirect(u.toString());
 }
 
+// Viewers: a light sign-in that only reads their email and which YouTube
+// channel is theirs (read-only). No posting, no Gmail, no stored token.
+// It shares the creator callback; the "v." state prefix tells them apart.
+const VIEWER_SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/youtube.readonly'];
+export function startViewerGoogle(req, res) {
+  const state = `v.${randomBytes(16).toString('base64url')}`;
+  setCookie(res, 'cd_oauth_state', state, 600);
+  const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  u.search = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: redirectUri(), response_type: 'code',
+    scope: VIEWER_SCOPES.join(' '), access_type: 'online', prompt: 'select_account', state,
+  });
+  res.redirect(u.toString());
+}
+
+async function finishViewer(req, res, t) {
+  const claims = JSON.parse(Buffer.from(t.id_token.split('.')[1], 'base64url').toString());
+  const r = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', { headers: { Authorization: `Bearer ${t.access_token}` } });
+  const ch = (await r.json()).items?.[0]; // 1 quota unit
+  if (!ch) return res.redirect('/join?error=no_channel');
+  await q(`insert into viewers (email, youtube_channel_id, youtube_handle, youtube_name, youtube_avatar) values ($1, $2, $3, $4, $5)
+    on conflict (youtube_channel_id) do update set email = excluded.email, youtube_handle = excluded.youtube_handle,
+      youtube_name = excluded.youtube_name, youtube_avatar = excluded.youtube_avatar`,
+  [String(claims.email).toLowerCase(), ch.id, ch.snippet?.customUrl || null, ch.snippet?.title || null, ch.snippet?.thumbnails?.default?.url || null]);
+  const { catchUp } = await import('./watcher.js'); // anything they already asked for goes out now
+  const sent = await catchUp(ch.id);
+  setCookie(res, 'cd_oauth_state', '', 0);
+  console.log(`🙋 Viewer linked with Google: ${ch.snippet?.title}`);
+  res.redirect(`/join?linked=1&sent=${sent}`);
+}
+
 async function tokenRequest(params) {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -53,9 +84,11 @@ async function tokenRequest(params) {
 
 // Exchanges the code, finds the creator's YouTube channel and saves the creator.
 export async function finishGoogle(req, res) {
-  if (req.query.error) return res.redirect(`/?error=${encodeURIComponent(req.query.error)}`);
-  if (!req.query.state || req.query.state !== cookies(req).cd_oauth_state) return res.redirect('/?error=state_mismatch');
+  const viewer = String(req.query.state || '').startsWith('v.');
+  if (req.query.error) return res.redirect(`${viewer ? '/join' : '/'}?error=${encodeURIComponent(req.query.error)}`);
+  if (!req.query.state || req.query.state !== cookies(req).cd_oauth_state) return res.redirect(`${viewer ? '/join' : '/'}?error=state_mismatch`);
   const t = await tokenRequest({ code: req.query.code, grant_type: 'authorization_code', redirect_uri: redirectUri() });
+  if (viewer) return finishViewer(req, res, t);
   const claims = JSON.parse(Buffer.from(t.id_token.split('.')[1], 'base64url').toString());
 
   let channel = null;

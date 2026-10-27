@@ -2,7 +2,7 @@ import express from 'express';
 import QRCode from 'qrcode';
 import { q, one } from './db.js';
 import { parseVideoId, getVideo, resolveHandle, cachedOverview } from './youtube.js';
-import { startGoogle, finishGoogle, signOut, requireCreator, publicCreator, canEmail, appUrl } from './auth.js';
+import { startGoogle, startViewerGoogle, finishGoogle, signOut, requireCreator, publicCreator, canEmail, appUrl } from './auth.js';
 import { pollAll, pollCampaign, catchUp } from './watcher.js';
 import { commentsRouter } from './comments.js';
 
@@ -13,6 +13,7 @@ const json = express.json({ limit: '64kb' });
 
 // ---- Sign in with Google ------------------------------------------------------
 app.get('/api/auth/google', startGoogle);
+app.get('/api/auth/viewer', startViewerGoogle);
 app.get('/api/auth/google/callback', (req, res) => finishGoogle(req, res).catch((err) => {
   console.error(`✗ Google sign-in failed: ${err.message}`);
   res.redirect(`/?error=${encodeURIComponent(err.message)}`);
@@ -210,9 +211,22 @@ app.get('/api/join-qr.svg', wrap(async (req, res) => {
   res.type('image/svg+xml').send(await QRCode.toString(`${appUrl()}/join`, { type: 'svg', margin: 1, width: 220 }));
 }));
 
+// ---- Pause: stops every YouTube check (automations + live comments) to save quota --
+const isPaused = async () => (await one(`select v from app_config where k = 'live_paused'`))?.v === 'true';
+app.get('/api/live', requireCreator, wrap(async (req, res) => res.json({ paused: await isPaused() })));
+app.post('/api/live', requireCreator, json, wrap(async (req, res) => {
+  const paused = Boolean(req.body.paused);
+  await q(`insert into app_config (k, v) values ('live_paused', $1) on conflict (k) do update set v = excluded.v`, [String(paused)]);
+  // Also switch the scheduler itself off, so nothing runs at all while paused.
+  await q(`select cron.alter_job(jobid, active := $1) from cron.job where jobname = 'commentdrop-poll'`, [!paused]).catch((e) => console.error(`cron toggle: ${e.message}`));
+  console.log(`⏸ ${req.creator.email}: live checks ${paused ? 'paused' : 'resumed'}`);
+  res.json({ paused });
+}));
+
 // ---- Scheduler: Supabase pg_cron calls this every minute ------------------------
 app.post('/api/cron/poll', wrap(async (req, res) => {
   if (!process.env.CRON_SECRET || req.get('x-cron-secret') !== process.env.CRON_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if (await isPaused()) return res.json({ at: new Date().toISOString(), paused: true });
   res.json({ at: new Date().toISOString(), results: await pollAll() });
 }));
 
