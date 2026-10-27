@@ -3,8 +3,8 @@ import QRCode from 'qrcode';
 import { q, one } from './db.js';
 import { parseVideoId, getVideo, resolveHandle, cachedOverview } from './youtube.js';
 import { startGoogle, startViewerGoogle, finishGoogle, signOut, requireCreator, publicCreator, canEmail, appUrl } from './auth.js';
-import { pollAll, pollCampaign, catchUp } from './watcher.js';
-import { commentsRouter } from './comments.js';
+import { pollAll, backfillCampaign, catchUp, handleInstagramWebhook } from './watcher.js';
+import { startInstagram, finishInstagram, disconnectInstagram, igStatus, listMedia, getMedia, linkInfo, validSignature } from './instagram.js';
 
 export const app = express();
 app.set('trust proxy', true);
@@ -20,6 +20,18 @@ app.get('/api/auth/google/callback', (req, res) => finishGoogle(req, res).catch(
 }));
 app.post('/api/auth/signout', signOut);
 
+// ---- Connect Instagram (creator) ------------------------------------------------
+app.get('/api/auth/instagram', requireCreator, startInstagram);
+app.get('/api/auth/instagram/callback', requireCreator, (req, res) => finishInstagram(req, res).catch((err) => {
+  console.error(`✗ Instagram connect failed: ${err.message}`);
+  res.redirect(`/dashboard?instagram_error=${encodeURIComponent(err.message)}`);
+}));
+app.post('/api/instagram/disconnect', requireCreator, wrap(async (req, res) => {
+  await disconnectInstagram(req.creator);
+  res.json({ ok: true });
+}));
+app.get('/api/ig/media', requireCreator, wrap(async (req, res) => res.json(await listMedia(req.creator, Boolean(req.query.refresh)))));
+
 app.get('/api/me', requireCreator, (req, res) => res.json(publicCreator(req.creator)));
 
 app.get('/api/status', requireCreator, (req, res) => {
@@ -28,6 +40,7 @@ app.get('/api/status', requireCreator, (req, res) => {
     youtube: c.channel_id ? 'live' : 'no-channel',
     email: canEmail(c) ? 'gmail' : 'off',
     sender: c.email,
+    instagram: igStatus(c),
     creator: c.channel_title || c.name,
     pollSeconds: 60,
     publicJoinUrl: `${appUrl()}/join`,
@@ -65,25 +78,34 @@ app.get('/api/campaigns', requireCreator, wrap(async (req, res) => {
     from campaigns c where c.creator_id = $1 order by c.id desc`, [req.creator.id]));
 }));
 
+// YouTube: { videoUrl } (link or id). Instagram: { platform: 'instagram', mediaId }.
 app.post('/api/campaigns', requireCreator, json, wrap(async (req, res) => {
   const c = req.creator;
-  const { videoUrl, keyword, materialId, materialName, subject, message } = req.body;
-  const videoId = parseVideoId(videoUrl);
-  if (!videoId) throw new Error('Pick a video or paste a YouTube link');
+  const { platform = 'youtube', videoUrl, mediaId, keyword, materialId, materialName, subject, message } = req.body;
+  if (!['youtube', 'instagram'].includes(platform)) throw new Error('Unknown platform');
   const kw = String(keyword || '').trim();
   if (!kw || /\s/.test(kw)) throw new Error('Keyword must be a single word, e.g. CHEATSHEET');
   const material = await one('select id, filename from materials where id = $1 and creator_id = $2', [materialId, c.id]);
   if (!material) throw new Error('Upload or pick a file to send');
 
-  const video = await getVideo(videoId);
+  let post;
+  if (platform === 'instagram') {
+    if (!c.ig_token) throw new Error('Connect Instagram first');
+    post = await getMedia(c, mediaId);
+  } else {
+    const videoId = parseVideoId(videoUrl);
+    if (!videoId) throw new Error('Pick a video or paste a YouTube link');
+    post = { ...(await getVideo(videoId)), permalink: `https://youtu.be/${videoId}` };
+  }
   const name = String(materialName || material.filename.replace(/\.[^.]+$/, '')).trim();
-  const campaign = await one(`insert into campaigns (creator_id, video_id, video_title, video_thumb, keyword, material_id, material_name, subject, message)
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning *`, [
-    c.id, videoId, video.title, video.thumb, kw.toUpperCase(), material.id, name,
+  const where = platform === 'instagram' ? 'post' : 'video';
+  const campaign = await one(`insert into campaigns (creator_id, platform, video_id, video_title, video_thumb, permalink, keyword, material_id, material_name, subject, message)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) returning *`, [
+    c.id, platform, post.id, post.title, post.thumb, post.permalink, kw.toUpperCase(), material.id, name,
     String(subject || `Your ${name} is here`).trim(),
-    String(message || `Thanks for commenting! Here's the ${name} I promised in the video.`).trim(),
+    String(message || `Thanks for commenting! Here's the ${name} I promised in the ${where}.`).trim(),
   ]);
-  await pollCampaign(campaign).catch(() => {}); // pick up comments that already exist
+  await backfillCampaign(campaign).catch((err) => console.warn(`⚠️  Backfill for ${campaign.keyword}: ${err.message}`));
   res.json(campaign);
 }));
 
@@ -143,15 +165,35 @@ app.get('/api/overview', requireCreator, wrap(async (req, res) => {
   const campaigns = ids.length ? await q(`
     select distinct on (c.video_id) c.id, c.video_id, c.keyword, c.material_name, c.active,
       (select count(*)::int from deliveries d where d.campaign_id = c.id and d.status = 'sent') as sent,
-      (select count(*)::int from deliveries d where d.campaign_id = c.id and d.status = 'waiting') as waiting
-    from campaigns c where c.creator_id = $1 and c.video_id = any($2)
+      (select count(*)::int from deliveries d where d.campaign_id = c.id and d.status in ('waiting', 'dm_sent')) as waiting
+    from campaigns c where c.creator_id = $1 and c.platform = 'youtube' and c.video_id = any($2)
     order by c.video_id, c.active desc, c.id desc`, [c.id, ids]) : [];
   const byVideo = new Map(campaigns.map((r) => [r.video_id, r]));
+  const automation = (a) => (a ? { id: a.id, keyword: a.keyword, materialName: a.material_name, active: a.active, sent: a.sent, waiting: a.waiting } : null);
 
+  // Instagram posts get the same treatment when the account is connected.
+  const instagram = { ...igStatus(c), posts: null };
+  if (c.ig_token) {
+    const posts = await listMedia(c).catch((err) => { instagram.error = err.message; return []; });
+    const igIds = posts.map((p) => p.id);
+    const igCampaigns = igIds.length ? await q(`
+      select distinct on (c.video_id) c.id, c.video_id, c.keyword, c.material_name, c.active,
+        (select count(*)::int from deliveries d where d.campaign_id = c.id and d.status = 'sent') as sent,
+        (select count(*)::int from deliveries d where d.campaign_id = c.id and d.status in ('waiting', 'dm_sent')) as waiting
+      from campaigns c where c.creator_id = $1 and c.platform = 'instagram' and c.video_id = any($2)
+      order by c.video_id, c.active desc, c.id desc`, [c.id, igIds]) : [];
+    const byPost = new Map(igCampaigns.map((r) => [r.video_id, r]));
+    instagram.posts = posts.map((p) => ({ id: p.id, title: p.title, thumb: p.thumb, permalink: p.permalink, publishedAt: p.publishedAt, comments: p.comments, automation: automation(byPost.get(p.id)) }));
+  }
+
+  const byPlatform = Object.fromEntries((await q(`
+    select platform, count(*) filter (where status = 'sent')::int as sent,
+      count(*) filter (where status in ('waiting', 'dm_sent'))::int as waiting
+    from deliveries where creator_id = $1 group by platform`, [c.id])).map((r) => [r.platform, { sent: r.sent, waiting: r.waiting }]));
   const counts = await one(`
     select count(*)::int as total,
       count(*) filter (where status = 'sent')::int as sent,
-      count(*) filter (where status = 'waiting')::int as waiting
+      count(*) filter (where status in ('waiting', 'dm_sent'))::int as waiting
     from deliveries where creator_id = $1`, [c.id]);
 
   const videos = yt.videos.map((v) => {
@@ -159,13 +201,14 @@ app.get('/api/overview', requireCreator, wrap(async (req, res) => {
     return {
       id: v.id, title: v.title, thumb: v.thumb, publishedAt: v.publishedAt,
       views: v.views, likes: v.likes, comments: v.comments,
-      automation: a ? { id: a.id, keyword: a.keyword, materialName: a.material_name, active: a.active, sent: a.sent, waiting: a.waiting } : null,
+      automation: automation(a),
     };
   });
   const withAutomation = videos.filter((v) => v.automation?.active).length;
   res.json({
     channel: yt.channel,
     videos,
+    instagram,
     totals: {
       views: yt.channel.views,
       subscribers: yt.channel.subscribers,
@@ -176,6 +219,7 @@ app.get('/api/overview', requireCreator, wrap(async (req, res) => {
       videos: videos.length,
       withAutomation,
       withoutAutomation: videos.length - withAutomation,
+      byPlatform: { youtube: { sent: 0, waiting: 0 }, instagram: { sent: 0, waiting: 0 }, ...byPlatform },
     },
   });
 }));
@@ -190,7 +234,7 @@ app.get('/api/activity', requireCreator, wrap(async (req, res) => {
 // Viewers who asked this creator for something (viewer emails stay private to that creator).
 app.get('/api/viewers', requireCreator, wrap(async (req, res) => {
   res.json(await q(`
-    select distinct on (v.id) v.id, v.email, v.youtube_handle, v.youtube_name, v.youtube_avatar, v.created_at
+    select distinct on (v.id) v.id, v.email, v.youtube_handle, v.youtube_name, v.youtube_avatar, v.instagram_username, v.created_at
     from viewers v join deliveries d on d.viewer_id = v.id where d.creator_id = $1 order by v.id desc`, [req.creator.id]));
 }));
 
@@ -203,15 +247,36 @@ app.post('/api/viewers', json, wrap(async (req, res) => {
     on conflict (youtube_channel_id) do update set email = excluded.email, youtube_handle = excluded.youtube_handle,
       youtube_name = excluded.youtube_name, youtube_avatar = excluded.youtube_avatar`,
   [email, ch.channelId, ch.handle, ch.name, ch.avatar]);
-  const caughtUp = await catchUp(ch.channelId);
+  const caughtUp = await catchUp('youtube', ch.channelId);
   res.json({ ...ch, email, caughtUp });
+}));
+
+// What the /join page shows for an Instagram DM link.
+app.get('/api/ig-link/:token', wrap(async (req, res) => {
+  const { link, ...info } = await linkInfo(req.params.token);
+  res.json(info);
+}));
+
+// ---- Instagram webhooks (Meta) ----------------------------------------------------
+// GET: Meta's one-time subscription check. POST: new comments, signed with the app secret.
+app.get('/api/webhooks/instagram', (req, res) => {
+  const ok = req.query['hub.mode'] === 'subscribe' && process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN
+    && req.query['hub.verify_token'] === process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN;
+  res.status(ok ? 200 : 403).send(ok ? String(req.query['hub.challenge']) : 'Forbidden');
+});
+app.post('/api/webhooks/instagram', express.raw({ type: '*/*', limit: '1mb' }), wrap(async (req, res) => {
+  if (!validSignature(req.body, req.get('x-hub-signature-256'))) return res.status(403).json({ error: 'Bad signature' });
+  // Handled before answering: a serverless function may stop once it responds. Meta retries
+  // on errors, and the comment id keeps each request to one delivery.
+  const handled = await handleInstagramWebhook(JSON.parse(req.body.toString('utf8')));
+  res.json({ ok: true, handled });
 }));
 
 app.get('/api/join-qr.svg', wrap(async (req, res) => {
   res.type('image/svg+xml').send(await QRCode.toString(`${appUrl()}/join`, { type: 'svg', margin: 1, width: 220 }));
 }));
 
-// ---- Pause: stops every YouTube check (automations + live comments) to save quota --
+// ---- Pause: stops every YouTube check to save quota ---------------------------------
 const isPaused = async () => (await one(`select v from app_config where k = 'live_paused'`))?.v === 'true';
 app.get('/api/live', requireCreator, wrap(async (req, res) => res.json({ paused: await isPaused() })));
 app.post('/api/live', requireCreator, json, wrap(async (req, res) => {
@@ -229,8 +294,6 @@ app.post('/api/cron/poll', wrap(async (req, res) => {
   if (await isPaused()) return res.json({ at: new Date().toISOString(), paused: true });
   res.json({ at: new Date().toISOString(), results: await pollAll() });
 }));
-
-app.use(json, commentsRouter);
 
 app.use((err, req, res, next) => {
   console.error(err);

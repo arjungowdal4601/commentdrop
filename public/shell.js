@@ -1,10 +1,9 @@
-// Shared sidebar for the signed-in pages: Dashboard · Automations · Comments,
-// the light/dark switch and the account. Pages mark themselves with <body data-page="…">.
+// Shared sidebar for the signed-in pages: Dashboard · Automations,
+// the live switch, the light/dark switch and the account. Pages mark themselves with <body data-page="…">.
 (() => {
   const icons = {
     dashboard: '<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>',
     automations: '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
-    comments: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   };
   const page = document.body.dataset.page;
   const link = (key, href, label) => `<a href="${href}" class="${page === key ? 'on' : ''}" ${page === key ? 'aria-current="page"' : ''}>
@@ -12,7 +11,7 @@
   const side = document.getElementById('side');
   side.innerHTML = `
     <a class="brand" href="/"><span class="logo">▶</span>CommentDrop</a>
-    <nav class="nav">${link('dashboard', '/dashboard', 'Dashboard')}${link('automations', '/automations', 'Automations')}${link('comments', '/comments', 'Comments')}</nav>
+    <nav class="nav">${link('dashboard', '/dashboard', 'Dashboard')}${link('automations', '/automations', 'Automations')}</nav>
     <div class="side-foot">
       <button class="live-btn" id="liveBtn" type="button" aria-label="Pause or resume live YouTube checks"></button>
       <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch light or dark theme"></button>

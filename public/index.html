@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CommentDrop · Every giveaway becomes a comment</title>
-  <meta name="description" content="Viewers comment a keyword under your YouTube video and get your material by email, sent from your own Gmail. Plus an inbox that tells you what your audience thinks.">
+  <meta name="description" content="Viewers comment a keyword under your YouTube video or Instagram post and get your file by email, sent from your own Gmail.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
@@ -144,37 +144,6 @@
     .bullets b { display: block; margin-bottom: 2px; }
     .bullets span { color: var(--muted); font-size: 15px; line-height: 1.5; }
 
-    /* Inbox */
-    .inbox-sec { background: var(--night); color: #fff; position: relative; overflow: hidden; }
-    .inbox-sec::before { content: ""; position: absolute; width: 800px; height: 800px; right: -300px; top: -200px; background: radial-gradient(closest-side, rgba(42,120,214,.25), transparent 70%); }
-    .inbox-sec .sub2 { color: #a1a1aa; }
-    .inbox-sec .kicker { color: #93c5fd; }
-    .mock { position: relative; margin-top: 52px; border-radius: 20px; background: #fff; color: var(--ink); padding: 22px; box-shadow: 0 40px 100px rgba(0,0,0,.5); }
-    .mock .headl { font-size: 18px; font-weight: 700; letter-spacing: -.01em; margin: 4px 0 12px; }
-    .mood2 { display: flex; gap: 2px; height: 10px; border-radius: 6px; overflow: hidden; }
-    .mood2 span { transform-origin: left; transform: scaleX(0); transition: transform 1s cubic-bezier(.2,.7,.2,1); }
-    .in .mood2 span { transform: scaleX(1); }
-    .ovg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
-    .ovg div { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fcfcfd; font-size: 13px; color: var(--ink-2); line-height: 1.45; }
-    .ovg div b { display: block; font-size: 12px; margin-bottom: 6px; color: var(--ink); }
-    .ovg .warn { border-color: #fecaca; background: #fff7f7; }
-    .tabs2 { display: flex; gap: 4px; margin-top: 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
-    .tabs2 span { padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; }
-    .tabs2 span.on { color: var(--ink); border-bottom-color: var(--ink); }
-    .tabs2 em { font-style: normal; font-size: 11px; background: var(--line-2); border-radius: 99px; padding: 1px 7px; margin-left: 6px; }
-    .tabs2 .al em { background: var(--red-soft); color: var(--red); }
-    .rows3 { display: grid; }
-    .r3 { display: flex; gap: 10px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line-2); font-size: 14px; }
-    .r3 .a { width: 28px; height: 28px; border-radius: 50%; flex: none; }
-    .r3 p { margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .r3 .lk { color: var(--muted); font-size: 13px; }
-    .r3.spam p { transition: color .5s 1.4s, text-decoration-color .5s 1.4s; text-decoration: line-through transparent; }
-    .in .r3.spam p { color: var(--faint); text-decoration-color: var(--faint); }
-    .r3 .hid { font-size: 11px; border-radius: 99px; padding: 2px 8px; background: var(--line-2); color: var(--muted); opacity: 0; transition: opacity .4s 1.8s; }
-    .in .r3 .hid { opacity: 1; }
-    .risk2 { font-size: 11px; font-weight: 600; color: var(--red); background: var(--red-soft); border-radius: 99px; padding: 1px 7px; }
-    .dotc { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-
     /* Trust */
     .trust-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 48px; }
     .tile { border: 1px solid var(--line); border-radius: 18px; padding: 22px; background: #fff; }
@@ -201,11 +170,11 @@
       .pin-track { height: auto; }
       .pin-stage { position: static; height: auto; padding: 90px 0; }
       .stage-art { height: 420px; }
-      .ovg, .trust-grid { grid-template-columns: 1fr 1fr; }
+      .trust-grid { grid-template-columns: 1fr 1fr; }
       section.s { padding: 90px 0; }
       .scroll-hint { display: none; }
     }
-    @media (max-width: 560px) { .ovg, .trust-grid { grid-template-columns: 1fr; } .drop { left: 150px; } }
+    @media (max-width: 560px) { .trust-grid { grid-template-columns: 1fr; } .drop { left: 150px; } }
     @media (prefers-reduced-motion: reduce) {
       .typed, .drop, .mail, .scroll-hint i::after { animation: none; }
       .typed { width: 10.5ch; border: 0; } .mail { opacity: 1; transform: none; }
@@ -220,7 +189,7 @@
 <header class="lp-nav" id="nav">
   <div class="wrap">
     <a class="brand" href="/"><span class="logo">▶</span>CommentDrop</a>
-    <nav aria-label="Sections"><a href="#how">How it works</a><a href="#viewers">For viewers</a><a href="#inbox">Comments inbox</a><a href="#trust">Trust</a></nav>
+    <nav aria-label="Sections"><a href="#how">How it works</a><a href="#viewers">For viewers</a><a href="#trust">Trust</a></nav>
     <a class="btn dark" href="/api/auth/google" data-signin>Sign in</a>
   </div>
 </header>
@@ -230,9 +199,9 @@
   <section class="hero">
     <div class="wrap">
       <div>
-        <span class="eyebrow-pill"><i></i>For YouTube creators</span>
+        <span class="eyebrow-pill"><i></i>For YouTube and Instagram creators</span>
         <h1>Every giveaway becomes <em>a comment.</em></h1>
-        <p class="lead">Viewers comment a keyword like <span class="kw">CHEATSHEET</span> under your video. CommentDrop emails them your file <b>from your own Gmail</b>, then shows you what your whole audience is telling you.</p>
+        <p class="lead">Viewers comment a keyword like <span class="kw">CHEATSHEET</span> under your video or post. CommentDrop emails them your file <b>from your own Gmail</b>.</p>
         <div class="cta">
           <a class="gbtn" href="/api/auth/google" data-signin>
             <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
@@ -271,7 +240,7 @@
         <div class="old">“Link in the description ↓”</div>
         <div class="new">Comment <span class="kw2">CHEATSHEET</span></div>
       </div>
-      <p class="sub2 reveal d3">Instagram creators grow with “comment GUIDE and I'll send it”. On YouTube, the people who want your template, checklist or code have to hunt for a link. CommentDrop lets them just ask, right where they already are.</p>
+      <p class="sub2 reveal d3">Instagram creators grow with “comment GUIDE and I'll send it”. On YouTube, the people who want your template, checklist or code have to hunt for a link. CommentDrop lets them just ask, right where they already are, on YouTube and Instagram.</p>
     </div>
   </section>
 
@@ -284,8 +253,8 @@
             <div class="kicker">How it works</div>
             <h2 class="big">Set it once.<br>Every comment sends it.</h2>
             <div class="steps" id="steps">
-              <div class="step on"><div class="n">1</div><div><b>Pick a video, a keyword and a file</b><span>Upload your PDF or template and choose the word viewers comment.</span></div></div>
-              <div class="step"><div class="n">2</div><div><b>Viewers comment the keyword</b><span>CommentDrop watches your video's new comments every minute.</span></div></div>
+              <div class="step on"><div class="n">1</div><div><b>Pick a video or post, a keyword and a file</b><span>Upload your PDF or template and choose the word viewers comment.</span></div></div>
+              <div class="step"><div class="n">2</div><div><b>Viewers comment the keyword</b><span>CommentDrop watches new comments on your video or post every minute.</span></div></div>
               <div class="step"><div class="n">3</div><div><b>The file lands in their inbox</b><span>Sent from your Gmail, with your name on it. Each viewer gets it once.</span></div></div>
             </div>
           </div>
@@ -342,7 +311,7 @@
       <div>
         <div class="kicker reveal">For viewers</div>
         <h2 class="big reveal d1">Ask in a comment.<br>Get it in your inbox.</h2>
-        <p class="sub2 reveal d2">Viewers link their YouTube @handle and email one time. After that, any keyword they comment on a CommentDrop video brings the file straight to them.</p>
+        <p class="sub2 reveal d2">Viewers link their YouTube @handle and email one time. After that, any keyword they comment on a CommentDrop video brings the file straight to them. On Instagram, they get a one-time sign-in link by DM.</p>
         <ul class="bullets reveal d3">
           <li><div class="ic">🔗</div><div><b>One-time link</b><span>No app to install, no account to manage. A handle and an email.</span></div></li>
           <li><div class="ic">💌</div><div><b>From the creator, not a stranger</b><span>The email comes from the creator's own Gmail, with their name on it.</span></div></li>
@@ -352,43 +321,16 @@
     </div>
   </section>
 
-  <!-- 5 · Comments inbox -->
-  <section class="s inbox-sec" id="inbox">
-    <div class="wrap" style="position:relative">
-      <div class="kicker reveal">Comments inbox</div>
-      <h2 class="big reveal d1">More comments.<br>Now read them all in a minute.</h2>
-      <p class="sub2 reveal d2">Claude reads every comment on your video and tells you what your audience loves, what to improve and what they want next. Spam and threats get their own tab, one click from gone.</p>
-      <div class="mock reveal d3" id="mock">
-        <div class="eyebrow">What your audience is saying · 214 comments</div>
-        <div class="headl">Viewers love the practical prompts and want a version for coding agents next.</div>
-        <div class="mood2"><span class="m-positive" style="width:46%"></span><span class="m-suggestion" style="width:18%"></span><span class="m-neutral" style="width:22%"></span><span class="m-negative" style="width:7%"></span><span class="m-spam" style="width:7%"></span></div>
-        <div class="ovg">
-          <div><b>💙 What they love</b>The prompts are ready to copy and paste.</div>
-          <div><b>🛠 What to improve</b>The middle section moves too fast.</div>
-          <div><b>💡 What they want next</b>A cheat sheet for coding agents.</div>
-          <div class="warn"><b>⚠️ Watch out</b>An account copying your name offers a "prize".</div>
-        </div>
-        <div class="tabs2"><span class="on">All<em>214</em></span><span>Positive<em>98</em></span><span>Neutral<em>47</em></span><span>Suggestions<em>39</em></span><span>Negative<em>15</em></span><span class="al">Spam &amp; threats<em>15</em></span></div>
-        <div class="rows3">
-          <div class="r3"><i class="dotc m-positive"></i><div class="a" style="background:#fde68a"></div><p><b>@devdiaries</b> The 7th prompt alone was worth it</p><span class="lk">↗</span></div>
-          <div class="r3"><i class="dotc m-suggestion"></i><div class="a" style="background:#fecaca"></div><p><b>@lena</b> Can you do one for Claude Code?</p><span class="lk">↗</span></div>
-          <div class="r3 spam"><i class="dotc m-spam"></i><div class="a" style="background:#d4d4d8"></div><p><b>@Arjun.0fficial</b> You won! Message me on Telegram to claim</p><span class="risk2">Impersonator</span><span class="hid">Hidden</span></div>
-        </div>
-      </div>
-      <p class="small reveal" style="color:#71717a;margin-top:14px">Sample data for illustration.</p>
-    </div>
-  </section>
-
-  <!-- 6 · Trust -->
+  <!-- 5 · Trust -->
   <section class="s" id="trust">
     <div class="wrap">
       <div class="kicker reveal">Built to be trusted</div>
       <h2 class="big reveal d1">Your channel. Your Gmail.<br>Your call on every action.</h2>
       <div class="trust-grid">
         <div class="tile reveal"><div class="ic">✉️</div><b>Sent from your Gmail</b><span>Material goes out from your own address, so replies come back to you.</span></div>
-        <div class="tile reveal d1"><div class="ic">✅</div><b>You approve every action</b><span>Replies, hiding and bans happen only when you confirm them.</span></div>
+        <div class="tile reveal d1"><div class="ic">✅</div><b>You stay in control</b><span>Pause any giveaway, or every live check, in one click.</span></div>
         <div class="tile reveal d2"><div class="ic">🤝</div><b>Viewers ask, they get it</b><span>Nothing is locked behind a subscribe. People who want your file simply ask.</span></div>
-        <div class="tile reveal d3"><div class="ic">🔐</div><b>Official Google sign-in</b><span>Uses the YouTube and Gmail APIs with the permissions you grant. <a href="/privacy" style="color:var(--blue)">Privacy policy</a></span></div>
+        <div class="tile reveal d3"><div class="ic">🔐</div><b>Official sign-in</b><span>Uses the YouTube, Gmail and Instagram APIs with the permissions you grant. <a href="/privacy" style="color:var(--blue)">Privacy policy</a></span></div>
       </div>
     </div>
   </section>

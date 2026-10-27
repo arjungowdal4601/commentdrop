@@ -1,5 +1,5 @@
-// Automations page: live automations, every video with its status, recent requests,
-// and one modal that creates or edits an automation (keyword, document, email).
+// Automations page: live automations, every YouTube video and Instagram post with its status,
+// recent requests, and one modal that creates or edits an automation (keyword, document, email).
 (() => {
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -30,49 +30,62 @@
   const day = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
   const compact = (n) => (n == null ? '–' : new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(n));
   const size = (b) => (b == null ? '' : b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`);
+  const PLAT = { youtube: 'YouTube', instagram: 'Instagram' };
+  const platTag = (p) => `<span class="au-plat ${p === 'instagram' ? 'ig' : 'yt'}">${PLAT[p] || PLAT.youtube}</span>`;
   const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
 
   // ---- State ----
   let campaigns = [];   // GET /api/campaigns rows
   let videos = [];      // [{ id, title, thumb, publishedAt, views, automation }]
+  let igPosts = [];     // overview's Instagram posts (carry sent / waiting counts)
+  let posts = [];       // GET /api/ig/media: [{ id, title, thumb, permalink, type, comments, publishedAt }]
+  let postsErr = '';    // set when Instagram isn't connected
+  let postsLoaded = false;
   let activity = [];
   let materials = [];
   let status = {};
   let filter = 'all';
+  let listPlat = 'youtube';  // which list "All videos" shows
   let feedLimit = 10;
-  let overviewOk = false;
 
   // ---- Loaders ----
   async function loadVideos() {
+    const ov = await api('/api/overview');
+    videos = ov.videos || [];
+    igPosts = ov.instagram?.posts || [];
+  }
+  // Instagram posts load once (and after a create); campaigns carry what changes.
+  async function loadPosts() {
     try {
-      const ov = await api('/api/overview');
-      videos = ov.videos || [];
-      overviewOk = true;
+      posts = await api('/api/ig/media');
+      postsErr = '';
     } catch (err) {
-      if (err.status !== 404 && overviewOk) throw err;
-      // Fallback while /api/overview is not available: plain video list.
-      const list = await api('/api/yt/videos').catch(() => []);
-      videos = list.map((v) => ({ ...v, views: null, automation: null }));
-      overviewOk = false;
-    }
+      if (err.status !== 400) throw err;
+      posts = [];
+      postsErr = err.message || 'Instagram is not connected';
+    } finally { postsLoaded = true; }
   }
   const loadCampaigns = async () => { campaigns = await api('/api/campaigns'); };
   const loadActivity = async () => { activity = await api('/api/activity'); };
   const loadMaterials = async () => { materials = await api('/api/materials'); };
   const loadStatus = async () => { status = await api('/api/status').catch(() => ({})); };
 
+  const platOf = (c) => c.platform || 'youtube';
+  const igConnected = () => !!status.instagram?.connected || posts.length > 0;
+
   // Sent / waiting for one automation: overview counts when present, else derived.
   function counts(c) {
-    const v = videos.find((x) => x.automation && x.automation.id === c.id);
+    const v = [...videos, ...igPosts].find((x) => x.automation && x.automation.id === c.id);
     if (v) return { sent: v.automation.sent || 0, waiting: v.automation.waiting || 0 };
     return {
       sent: c.delivered || 0,
       waiting: activity.filter((a) => a.campaign_id === c.id && a.status === 'waiting').length,
     };
   }
-  // The automation shown for a video: newest active campaign, else newest.
-  function automationFor(v) {
-    const own = campaigns.filter((c) => c.video_id === v.id).sort((a, b) => (b.active - a.active) || (b.id - a.id));
+  // The automation shown for a video or post: newest active campaign, else newest.
+  function automationFor(v, plat = 'youtube') {
+    const own = campaigns.filter((c) => platOf(c) === plat && (c.video_id === v.id || c.media_id === v.id))
+      .sort((a, b) => (b.active - a.active) || (b.id - a.id));
     if (own.length) return own[0];
     return v.automation ? campaigns.find((c) => c.id === v.automation.id) || null : null;
   }
@@ -87,8 +100,9 @@
       return `<li class="au-row${c.active ? '' : ' paused'}">
         <img class="au-thumb" src="${esc(c.video_thumb)}" alt="" loading="lazy">
         <div class="au-main">
-          <div class="au-title" title="${esc(c.video_title)}">${esc(c.video_title)}</div>
-          <div class="au-meta"><span class="au-kw">${esc(c.keyword)}</span><span class="au-file">${FILE_ICON}<span>${esc(c.material_name)}</span></span></div>
+          <div class="au-title" title="${esc(c.video_title)}">${c.permalink
+            ? `<a href="${esc(c.permalink)}" target="_blank" rel="noopener">${esc(c.video_title)}</a>` : esc(c.video_title)}</div>
+          <div class="au-meta">${platTag(platOf(c))}<span class="au-kw">${esc(c.keyword)}</span><span class="au-file">${FILE_ICON}<span>${esc(c.material_name)}</span></span></div>
         </div>
         <div class="au-side">
           <span class="au-stat"><b>${n.sent}</b> sent</span>
@@ -101,14 +115,25 @@
   }
 
   function renderVideos() {
-    const list = videos.map((v) => ({ v, a: automationFor(v) }))
+    const ig = listPlat === 'instagram';
+    $('#listTitle').textContent = ig ? 'All posts' : 'All videos';
+    $('#colItem').textContent = ig ? 'Post' : 'Video';
+    $('#colStat').textContent = ig ? 'Comments' : 'Views';
+    $('#filters').hidden = ig && !!postsErr;
+    if (ig && !postsLoaded) { $('#videoRows').innerHTML = '<tr><td colspan="3" class="au-empty">Loading…</td></tr>'; return; }
+    if (ig && postsErr) {
+      $('#videoRows').innerHTML = '<tr><td colspan="3" class="au-empty">Connect Instagram on the <a href="/dashboard">Dashboard</a> to add giveaways to your posts.</td></tr>';
+      return;
+    }
+    const noun = ig ? 'post' : 'video';
+    const list = (ig ? posts : videos).map((v) => ({ v, a: automationFor(v, listPlat) }))
       .filter(({ a }) => filter === 'all' || (filter === 'with' ? !!a : !a));
-    const empty = { all: 'No videos found.', with: 'No videos with an automation.', without: 'Every video has an automation.' }[filter];
+    const empty = { all: `No ${noun}s found.`, with: `No ${noun}s with an automation.`, without: `Every ${noun} has an automation.` }[filter];
     $('#videoRows').innerHTML = list.length ? list.map(({ v, a }) => `
       <tr data-video="${esc(v.id)}">
-        <td><div class="vcell"><img src="${esc(v.thumb)}" alt="" loading="lazy"><div style="min-width:0">
-          <div class="t">${esc(v.title)}</div><div class="d">${day(v.publishedAt)}</div></div></div></td>
-        <td class="num hide-sm">${compact(v.views)}</td>
+        <td><div class="vcell${ig ? ' au-sq' : ''}"><img src="${esc(v.thumb)}" alt="" loading="lazy"><div style="min-width:0">
+          <div class="t">${esc(v.title || 'Untitled post')}</div><div class="d">${day(v.publishedAt)}</div></div></div></td>
+        <td class="num hide-sm">${compact(ig ? v.comments : v.views)}</td>
         <td class="num">${a
           ? `<span class="badge ${a.active ? 'on' : 'off'}"><span class="au-mono">${esc(a.keyword)}</span> · ${a.active ? 'on' : 'paused'}</span>`
           : `<button class="btn sm" type="button" data-add="${esc(v.id)}">Add<span class="hide-xs">&nbsp;automation</span></button>`}</td>
@@ -118,6 +143,7 @@
   const STATUS = {
     sent: (r) => ['sent', `Sent${r.viewer_email ? ` to ${r.viewer_email}` : ''}`],
     waiting: () => ['waiting', 'Waiting for email link'],
+    dm_sent: () => ['dm', 'Sign-in link sent by DM'],
     failed: (r) => ['failed', `Failed${r.error ? `: ${r.error}` : ''}`],
   };
   function renderFeed() {
@@ -125,11 +151,9 @@
     $('#feed').innerHTML = rows.length ? rows.map((r) => {
       const [cls, label] = (STATUS[r.status] || (() => ['', r.status]))(r);
       const name = r.author_name || 'Someone';
-      const av = r.author_avatar
-        ? `<img class="au-av" src="${esc(r.author_avatar)}" alt="" referrerpolicy="no-referrer">`
-        : `<span class="au-av">${esc(name.replace('@', '')[0]?.toUpperCase() || '?')}</span>`;
+      const av = `<span class="au-av">${esc(name.replace('@', '')[0]?.toUpperCase() || '?')}</span>`;
       return `<li>${av}<div class="au-fb">
-          <div class="au-fl"><b>${esc(name)}</b><span class="au-kw">${esc(r.keyword)}</span></div>
+          <div class="au-fl"><b>${esc(name)}</b><span class="au-kw">${esc(r.keyword)}</span>${platTag(r.platform)}</div>
           <div class="au-fs ${cls}">${esc(label)}</div>
         </div><span class="au-when" title="${esc(r.video_title)}">${ago(r.delivered_at || r.detected_at)}</span></li>`;
     }).join('') : '<li class="au-empty">No requests yet.</li>';
@@ -157,7 +181,17 @@
     if (ed) openEdit(ed.dataset.edit);
   };
 
-  // ---- Videos table: filter, add, edit ----
+  // ---- Videos / posts table: platform, filter, add, edit ----
+  function showList(plat) {
+    listPlat = plat;
+    document.querySelectorAll('#platTabs [data-p]').forEach((x) => {
+      x.classList.toggle('on', x.dataset.p === plat);
+      x.setAttribute('aria-selected', String(x.dataset.p === plat));
+    });
+    renderVideos();
+    if (plat === 'instagram' && !postsLoaded) loadPosts().catch((err) => toast(err.message)).then(renderVideos);
+  }
+  $('#platTabs').onclick = (e) => { const b = e.target.closest('[data-p]'); if (b) showList(b.dataset.p); };
   $('#filters').onclick = (e) => {
     const b = e.target.closest('[data-f]');
     if (!b) return;
@@ -167,11 +201,14 @@
   };
   $('#videoRows').onclick = (e) => {
     const tr = e.target.closest('tr[data-video]');
-    if (!tr) return;
-    const v = videos.find((x) => x.id === tr.dataset.video);
-    const a = v && automationFor(v);
-    if (a) openEdit(a.id); else openCreate(tr.dataset.video);
+    if (tr) openFor(listPlat, tr.dataset.video);
   };
+  // Edit the item's automation when it has one, else start a new one on it.
+  function openFor(plat, id) {
+    const v = (plat === 'instagram' ? posts : videos).find((x) => x.id === id);
+    const a = v && automationFor(v, plat);
+    if (a) openEdit(a.id); else openCreate(id, plat);
+  }
 
   // ---- Feed ----
   $('#moreBtn').onclick = () => { feedLimit += 10; renderFeed(); };
@@ -198,6 +235,7 @@
   // ---- Modal (create + edit) ----
   let editing = null;     // campaign row when editing, null when creating
   let selectedFile = '';  // material id
+  let plat = 'youtube';   // platform of the automation being created
 
   function renderFiles() {
     $('#amFiles').innerHTML = materials.length ? materials.map((m) => `
@@ -248,16 +286,42 @@
     }
   };
 
+  const clip = (t, n = 80) => (t.length > n ? `${t.slice(0, n - 1)}…` : t);
+  // YouTube: your videos plus a paste-a-link option. Instagram: your posts only.
   function videoOptions(pick) {
-    const opts = videos.map((v) => {
-      const a = automationFor(v);
-      return `<option value="${esc(v.id)}">${esc(v.title)}${a ? ` (${esc(a.keyword)})` : ''}</option>`;
+    const ig = plat === 'instagram';
+    const list = ig ? posts : videos;
+    const opts = list.map((v) => {
+      const a = automationFor(v, plat);
+      return `<option value="${esc(v.id)}">${esc(clip(v.title || 'Untitled post'))}${a ? ` (${esc(a.keyword)})` : ''}</option>`;
     });
-    $('#amVideo').innerHTML = opts.join('') + '<option value="__link">Paste a YouTube link…</option>';
-    $('#amVideo').value = pick && videos.some((v) => v.id === pick) ? pick : (videos[0] ? videos.find((v) => !automationFor(v))?.id || videos[0].id : '__link');
+    $('#amVideoLbl').textContent = ig ? 'Post' : 'Video';
+    $('#amVideo').innerHTML = opts.join('') + (ig ? (list.length ? '' : '<option value="">No posts found</option>') : '<option value="__link">Paste a YouTube link…</option>');
+    const first = list.find((v) => !automationFor(v, plat))?.id || list[0]?.id;
+    $('#amVideo').value = pick && list.some((v) => v.id === pick) ? pick : (first || (ig ? '' : '__link'));
     $('#amLink').hidden = $('#amVideo').value !== '__link';
   }
   $('#amVideo').onchange = () => { $('#amLink').hidden = $('#amVideo').value !== '__link'; };
+
+  function setPlat(p, pick) {
+    plat = p;
+    document.querySelectorAll('#amPlat [data-plat]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.plat === p)));
+    videoOptions(pick);
+  }
+  function paintPlatChoice() {
+    const ok = igConnected();
+    $('#amPlat [data-plat="instagram"]').disabled = !ok;
+    $('#amPlatHint').hidden = ok;
+  }
+  $('#amPlat').onclick = async (e) => {
+    const b = e.target.closest('[data-plat]');
+    if (!b || b.disabled || b.dataset.plat === plat) return;
+    if (b.dataset.plat === 'instagram' && !postsLoaded) {
+      $('#amVideo').innerHTML = '<option value="">Loading posts…</option>';
+      await loadPosts().catch((err) => { $('#amErr').textContent = err.message; });
+    }
+    setPlat(b.dataset.plat);
+  };
 
   async function openModal() {
     $('#amErr').textContent = '';
@@ -267,14 +331,18 @@
     try { await loadMaterials(); renderFiles(); } catch (err) { $('#amErr').textContent = err.message; }
   }
 
-  function openCreate(videoId) {
+  function openCreate(videoId, p = 'youtube') {
     editing = null;
     selectedFile = '';
     $('#amTitle').textContent = 'New automation';
     $('#amSave').textContent = 'Create';
+    $('#amPlatField').hidden = false;
     $('#amVideoView').hidden = true;
     $('#amVideo').hidden = false;
-    videoOptions(videoId);
+    paintPlatChoice();
+    if (p === 'instagram' && videoId && !igConnected()) toast('Connect Instagram on the Dashboard first');
+    setPlat(p === 'instagram' && igConnected() ? 'instagram' : 'youtube', videoId);
+    if (plat === 'instagram' && !postsLoaded) loadPosts().catch(() => {}).then(() => setPlat('instagram', videoId));
     $('#amKeyword').value = '';
     $('#amSubject').value = '';
     $('#amMessage').value = '';
@@ -289,6 +357,8 @@
     selectedFile = c.material_id;
     $('#amTitle').textContent = 'Edit automation';
     $('#amSave').textContent = 'Save';
+    $('#amPlatField').hidden = true;
+    $('#amVideoLbl').textContent = platOf(c) === 'instagram' ? 'Post' : 'Video';
     $('#amVideo').hidden = true;
     $('#amLink').hidden = true;
     $('#amVideoView').hidden = false;
@@ -304,7 +374,7 @@
   $('#amCancel').onclick = closeModal;
   $('#amModal').onclick = (e) => { if (e.target.id === 'amModal') closeModal(); };
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#amModal').classList.contains('open')) closeModal(); });
-  $('#newBtn').onclick = () => openCreate();
+  $('#newBtn').onclick = () => openCreate(null, listPlat);
 
   $('#amForm').onsubmit = async (e) => {
     e.preventDefault();
@@ -324,13 +394,21 @@
         if (row && row.id) Object.assign(editing, row);
         toast('Automation saved');
       } else {
-        const videoUrl = $('#amVideo').value === '__link' ? $('#amLink').value.trim() : $('#amVideo').value;
-        if (!videoUrl) throw new Error('Pick a video or paste a YouTube link');
-        const body = { videoUrl, keyword, materialId: selectedFile };
+        let body;
+        if (plat === 'instagram') {
+          const mediaId = $('#amVideo').value;
+          if (!mediaId) throw new Error('Pick an Instagram post');
+          body = { platform: 'instagram', mediaId, keyword, materialId: selectedFile };
+        } else {
+          const videoUrl = $('#amVideo').value === '__link' ? $('#amLink').value.trim() : $('#amVideo').value;
+          if (!videoUrl) throw new Error('Pick a video or paste a YouTube link');
+          body = { platform: 'youtube', videoUrl, keyword, materialId: selectedFile };
+        }
         if (subject) body.subject = subject;
         if (message) body.message = message;
         const c = await api('/api/campaigns', { method: 'POST', body });
         toast(`Watching for ${c.keyword || keyword.toUpperCase()}`);
+        if (plat !== listPlat) showList(plat);
       }
       closeModal();
       await refresh(true);
@@ -355,11 +433,21 @@
     renderAll();
   }
 
-  Promise.allSettled([loadCampaigns(), loadActivity(), loadVideos(), loadStatus()]).then((results) => {
+  // /automations?video=<id> or ?post=<mediaId> opens the modal on that video or post.
+  const q = new URLSearchParams(location.search);
+  const want = q.get('post') ? ['instagram', q.get('post')] : q.get('video') ? ['youtube', q.get('video')] : null;
+  const boot = [loadCampaigns(), loadActivity(), loadVideos(), loadStatus()];
+  if (want?.[0] === 'instagram') boot.push(loadPosts());
+  Promise.allSettled(boot).then((results) => {
     const failed = results.find((r) => r.status === 'rejected');
     if (failed) toast(failed.reason?.message || 'Could not load everything');
+    if (want) {
+      history.replaceState(null, '', location.pathname);
+      if (want[0] === 'instagram') showList('instagram');
+      openFor(...want);
+    }
     renderAll();
   });
-  // Live for the demo: counts and requests update every 3 s in the background.
-  setInterval(() => { if (!document.hidden && !$('#amModal').classList.contains('open')) refresh(true, true); }, 3000);
+  // Background refresh every 30 s: the server caches YouTube for 10 min, the sent / waiting counts come fresh from the database.
+  setInterval(() => { if (!document.hidden && !$('#amModal').classList.contains('open')) refresh(true, true); }, 30000);
 })();

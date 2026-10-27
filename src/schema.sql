@@ -54,16 +54,16 @@ create table if not exists viewers (
 );
 
 -- One row per keyword comment; the comment id is the key, so it is delivered once.
+-- Only who asked and what happened is kept, never the comment text.
+-- author_channel_id is the YouTube channel id, or the Instagram user id on Instagram.
 create table if not exists deliveries (
   comment_id        text primary key,
   campaign_id       bigint not null references campaigns(id) on delete cascade,
   creator_id        uuid not null references creators(id) on delete cascade,
   author_channel_id text,
   author_name       text,
-  author_avatar     text,
-  comment_text      text,
   commented_at      timestamptz,
-  status            text not null default 'waiting', -- waiting | sent | failed
+  status            text not null default 'waiting', -- waiting | dm_sent | sent | failed
   viewer_id         bigint references viewers(id) on delete set null,
   error             text,
   delivered_via     text,
@@ -73,40 +73,43 @@ create table if not exists deliveries (
 create index if not exists deliveries_creator_idx on deliveries (creator_id, detected_at desc);
 create index if not exists deliveries_author_idx on deliveries (author_channel_id) where status <> 'sent';
 
--- Latest Claude analysis per creator + video.
-create table if not exists analyses (
+-- Instagram: one-time sign-in links sent by DM to a first-time commenter.
+create table if not exists ig_links (
+  token       text primary key,
   creator_id  uuid not null references creators(id) on delete cascade,
-  video_id    text not null,
-  video_title text,
-  video_thumb text,
-  data        jsonb not null,
-  created_at  timestamptz not null default now(),
-  primary key (creator_id, video_id)
+  ig_user_id  text not null,
+  ig_username text,
+  comment_id  text not null,
+  expires_at  timestamptz not null,
+  used_at     timestamptz,
+  created_at  timestamptz not null default now()
 );
 
--- Replies posted from the Comments page, so a comment is never answered twice.
-create table if not exists comment_replies (
-  comment_id text primary key,
-  creator_id uuid not null references creators(id) on delete cascade,
-  video_id   text not null,
-  text       text not null,
-  status     text not null, -- sent | failed
-  reply_id   text,
-  error      text,
-  replied_at timestamptz not null default now()
+-- Small app-wide switches, e.g. live_paused = 'true' stops every YouTube check.
+create table if not exists app_config (
+  k text primary key,
+  v text
 );
 
--- Comments hidden (rejected) or hidden + author banned from the Comments page.
--- YouTube can't restore a rejected comment to published via the API, so this is one-way.
-create table if not exists comment_moderation (
-  comment_id   text primary key,
-  creator_id   uuid not null references creators(id) on delete cascade,
-  video_id     text not null,
-  action       text not null, -- hide | ban
-  status       text not null, -- done | failed
-  error        text,
-  moderated_at timestamptz not null default now()
-);
+-- Changes for databases created before Instagram support (safe to run again).
+alter table creators   add column if not exists yt_checked_at timestamptz; -- newest comment time seen by the channel check
+alter table creators   add column if not exists ig_user_id text;
+alter table creators   add column if not exists ig_username text;
+alter table creators   add column if not exists ig_avatar text;
+alter table creators   add column if not exists ig_token text;
+alter table creators   add column if not exists ig_token_expires timestamptz;
+create unique index if not exists creators_ig_user_idx on creators (ig_user_id);
+alter table campaigns  add column if not exists platform text not null default 'youtube'; -- youtube | instagram
+alter table campaigns  add column if not exists permalink text;
+alter table viewers    alter column youtube_channel_id drop not null;
+alter table viewers    add column if not exists instagram_user_id text unique;
+alter table viewers    add column if not exists instagram_username text;
+alter table deliveries add column if not exists platform text not null default 'youtube';
+alter table deliveries drop column if exists comment_text;
+alter table deliveries drop column if exists author_avatar;
+drop table if exists analyses;
+drop table if exists comment_replies;
+drop table if exists comment_moderation;
 
 -- Supabase exposes the public schema over its REST API; RLS with no policies
 -- keeps these tables closed to anon/authenticated keys. The app connects as its own role.
@@ -115,6 +118,5 @@ alter table materials          enable row level security;
 alter table campaigns          enable row level security;
 alter table viewers            enable row level security;
 alter table deliveries         enable row level security;
-alter table analyses           enable row level security;
-alter table comment_replies    enable row level security;
-alter table comment_moderation enable row level security;
+alter table ig_links           enable row level security;
+alter table app_config         enable row level security;

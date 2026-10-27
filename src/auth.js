@@ -1,14 +1,14 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { q, one } from './db.js';
 
-// "Continue with Google": one consent covers sign-in, posting YouTube replies
-// as the creator's channel, and sending material emails from their Gmail.
+// "Continue with Google": one consent covers sign-in, reading the creator's
+// YouTube channel, and sending material emails from their Gmail.
 const SCOPES = [
   'openid', 'email', 'profile',
-  'https://www.googleapis.com/auth/youtube.force-ssl',
+  'https://www.googleapis.com/auth/youtube.readonly',
   'https://www.googleapis.com/auth/gmail.send',
 ];
-const YT_SCOPE = 'https://www.googleapis.com/auth/youtube.force-ssl';
+const YT_SCOPES = ['https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/youtube.force-ssl'];
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 const COOKIE = 'cd_session';
 const MAX_AGE = 30 * 24 * 3600; // 30 days
@@ -43,16 +43,36 @@ export function startGoogle(req, res) {
 // Viewers: a light sign-in that only reads their email and which YouTube
 // channel is theirs (read-only). No posting, no Gmail, no stored token.
 // It shares the creator callback; the "v." state prefix tells them apart.
+// Instagram viewers arrive from a DM link (?ig=<token>): email only, "i." prefix.
 const VIEWER_SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/youtube.readonly'];
 export function startViewerGoogle(req, res) {
-  const state = `v.${randomBytes(16).toString('base64url')}`;
+  const igToken = /^[\w-]{10,64}$/.test(String(req.query.ig || '')) ? String(req.query.ig) : null;
+  const state = `${igToken ? `i.${igToken}` : 'v'}.${randomBytes(16).toString('base64url')}`;
   setCookie(res, 'cd_oauth_state', state, 600);
   const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   u.search = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: redirectUri(), response_type: 'code',
-    scope: VIEWER_SCOPES.join(' '), access_type: 'online', prompt: 'select_account', state,
+    scope: igToken ? 'openid email' : VIEWER_SCOPES.join(' '), access_type: 'online', prompt: 'select_account', state,
   });
   res.redirect(u.toString());
+}
+
+// The DM link proves which Instagram account this is; Google gives a verified email.
+async function finishInstagramViewer(req, res, t, igToken) {
+  const claims = JSON.parse(Buffer.from(t.id_token.split('.')[1], 'base64url').toString());
+  const { linkInfo } = await import('./instagram.js');
+  const info = await linkInfo(igToken);
+  if (!info.valid) return res.redirect(`/join?ig=${encodeURIComponent(igToken)}&error=${info.reason}`);
+  const l = info.link;
+  await q(`insert into viewers (email, instagram_user_id, instagram_username) values ($1, $2, $3)
+    on conflict (instagram_user_id) do update set email = excluded.email, instagram_username = excluded.instagram_username`,
+  [String(claims.email).toLowerCase(), l.ig_user_id, l.ig_username]);
+  await q('update ig_links set used_at = now() where token = $1', [igToken]);
+  const { catchUp } = await import('./watcher.js');
+  const sent = await catchUp('instagram', l.ig_user_id);
+  setCookie(res, 'cd_oauth_state', '', 0);
+  console.log(`🙋 Instagram viewer @${l.ig_username} linked with Google`);
+  res.redirect(`/join?linked=1&sent=${sent}&via=instagram`);
 }
 
 async function finishViewer(req, res, t) {
@@ -65,7 +85,7 @@ async function finishViewer(req, res, t) {
       youtube_name = excluded.youtube_name, youtube_avatar = excluded.youtube_avatar`,
   [String(claims.email).toLowerCase(), ch.id, ch.snippet?.customUrl || null, ch.snippet?.title || null, ch.snippet?.thumbnails?.default?.url || null]);
   const { catchUp } = await import('./watcher.js'); // anything they already asked for goes out now
-  const sent = await catchUp(ch.id);
+  const sent = await catchUp('youtube', ch.id);
   setCookie(res, 'cd_oauth_state', '', 0);
   console.log(`🙋 Viewer linked with Google: ${ch.snippet?.title}`);
   res.redirect(`/join?linked=1&sent=${sent}`);
@@ -84,15 +104,19 @@ async function tokenRequest(params) {
 
 // Exchanges the code, finds the creator's YouTube channel and saves the creator.
 export async function finishGoogle(req, res) {
-  const viewer = String(req.query.state || '').startsWith('v.');
-  if (req.query.error) return res.redirect(`${viewer ? '/join' : '/'}?error=${encodeURIComponent(req.query.error)}`);
-  if (!req.query.state || req.query.state !== cookies(req).cd_oauth_state) return res.redirect(`${viewer ? '/join' : '/'}?error=state_mismatch`);
+  const state = String(req.query.state || '');
+  const igToken = state.startsWith('i.') ? state.split('.')[1] : null;
+  const viewer = state.startsWith('v.') || Boolean(igToken);
+  const back = viewer ? `/join?${igToken ? `ig=${encodeURIComponent(igToken)}&` : ''}` : '/?';
+  if (req.query.error) return res.redirect(`${back}error=${encodeURIComponent(req.query.error)}`);
+  if (!state || state !== cookies(req).cd_oauth_state) return res.redirect(`${back}error=state_mismatch`);
   const t = await tokenRequest({ code: req.query.code, grant_type: 'authorization_code', redirect_uri: redirectUri() });
+  if (igToken) return finishInstagramViewer(req, res, t, igToken);
   if (viewer) return finishViewer(req, res, t);
   const claims = JSON.parse(Buffer.from(t.id_token.split('.')[1], 'base64url').toString());
 
   let channel = null;
-  if (t.scope?.includes(YT_SCOPE)) {
+  if (YT_SCOPES.some((s) => t.scope?.includes(s))) {
     const r = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', { headers: { Authorization: `Bearer ${t.access_token}` } });
     channel = (await r.json()).items?.[0] || null; // 1 quota unit
   }
@@ -149,7 +173,6 @@ export async function requireCreator(req, res, next) {
   }
 }
 
-export const canReply = (creator) => Boolean(creator.refresh_token && creator.scope?.includes(YT_SCOPE));
 export const canEmail = (creator) => Boolean(creator.refresh_token && creator.scope?.includes(GMAIL_SCOPE));
 
 // Short-lived Google access token for one creator (cached per warm function).
@@ -165,7 +188,8 @@ export async function accessToken(creator) {
 
 export const publicCreator = (c) => ({
   id: c.id, email: c.email, name: c.name, channelId: c.channel_id, channelTitle: c.channel_title,
-  channelHandle: c.channel_handle, channelAvatar: c.channel_avatar, canReply: canReply(c), canEmail: canEmail(c),
+  channelHandle: c.channel_handle, channelAvatar: c.channel_avatar, canEmail: canEmail(c),
+  instagram: c.ig_username ? { username: c.ig_username, avatar: c.ig_avatar } : null,
 });
 
 export { q };

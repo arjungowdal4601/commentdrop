@@ -10,6 +10,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 
 function renderEmail({ campaign, delivery, viewer, downloadUrl, creatorName }) {
   const creator = creatorName;
+  const ig = campaign.platform === 'instagram';
+  const postUrl = ig ? campaign.permalink || 'https://www.instagram.com/' : `https://youtu.be/${campaign.video_id}`;
   const body = esc(campaign.message).replace(/\n/g, '<br>');
   return `<!doctype html>
 <html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#18181b">
@@ -29,11 +31,11 @@ function renderEmail({ campaign, delivery, viewer, downloadUrl, creatorName }) {
       <tr><td style="padding:18px 28px;background:#fafafa;border-top:1px solid #f0f0f2">
         <table cellpadding="0" cellspacing="0"><tr>
           ${campaign.video_thumb ? `<td style="padding-right:12px"><img src="${esc(campaign.video_thumb)}" width="96" style="border-radius:8px;display:block"></td>` : ''}
-          <td style="font-size:12px;color:#71717a;line-height:1.5">From <b style="color:#18181b">${esc(creator)}</b><br>${esc(campaign.video_title)}<br><a href="https://youtu.be/${esc(campaign.video_id)}" style="color:#ef4444">Watch the video →</a></td>
+          <td style="font-size:12px;color:#71717a;line-height:1.5">From <b style="color:#18181b">${esc(creator)}</b><br>${esc(campaign.video_title)}<br><a href="${esc(postUrl)}" style="color:#ef4444">${ig ? 'See the post' : 'Watch the video'} →</a></td>
         </tr></table>
       </td></tr>
     </table>
-    <p style="font-size:11px;color:#a1a1aa;margin:16px 0 0">Sent to ${esc(viewer.email)} because your YouTube account ${esc(viewer.youtube_handle || '')} is linked on CommentDrop.</p>
+    <p style="font-size:11px;color:#a1a1aa;margin:16px 0 0">Sent to ${esc(viewer.email)} because your ${ig ? `Instagram account @${esc(viewer.instagram_username || '')}` : `YouTube account ${esc(viewer.youtube_handle || '')}`} is linked on CommentDrop.</p>
   </td></tr></table>
 </body></html>`;
 }
@@ -42,7 +44,7 @@ export async function sendMaterial({ creator, campaign, delivery, viewer }) {
   if (!canEmail(creator)) throw new Error('Creator has not allowed Gmail sending - sign in again');
   const material = await one('select id, filename, mime, data from materials where id = $1', [campaign.material_id]);
   if (!material) throw new Error('Material file is missing');
-  const creatorName = creator.channel_title || creator.name || 'CommentDrop';
+  const creatorName = (campaign.platform === 'instagram' && creator.ig_username ? `@${creator.ig_username}` : creator.channel_title) || creator.name || 'CommentDrop';
   const html = renderEmail({ campaign, delivery, viewer, downloadUrl: materialUrl(material), creatorName });
   const raw = await new MailComposer({
     from: `"${creatorName.replace(/"/g, '')} via CommentDrop" <${creator.email}>`,

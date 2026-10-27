@@ -22,6 +22,13 @@ td.au-empty { padding: 22px 16px; }
 .au-stat b { color: var(--ink); font-weight: 600; }
 .au-stat.wait b { color: var(--amber); }
 .au-mono, .au-kw { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.au-title a { text-decoration: none; }
+.au-title a:hover { text-decoration: underline; }
+/* Platform tag on live rows and the feed */
+.au-plat { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 5px; flex: none; white-space: nowrap; }
+.au-plat.yt { background: var(--red-soft); color: var(--red); }
+.au-plat.ig { background: color-mix(in srgb, #d62976 12%, transparent); color: #c13584; }
+:root[data-theme="dark"] .au-plat.ig { color: #f472b6; }
 .au-kw { font-size: 11px; font-weight: 600; background: var(--line-2); border: 1px solid var(--line); color: var(--ink-2); padding: 1px 6px; border-radius: 5px; flex: none; }
 
 /* On/off switch */
@@ -38,12 +45,23 @@ td.au-empty { padding: 22px 16px; }
 .au-chip:hover { background: var(--hover); color: var(--ink); }
 .au-chip.on { background: var(--hover); border-color: var(--line); color: var(--ink); font-weight: 600; }
 
+/* Platform switch: YouTube | Instagram */
+.au-hg { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.au-seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 9px; background: var(--line-2); justify-self: start; }
+.au-seg button { height: 26px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+.au-seg button:hover:not(:disabled) { color: var(--ink); }
+.au-seg button.on, .au-seg button[aria-checked="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.au-seg button:disabled { opacity: .45; cursor: default; }
+.au-seg button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.hint a, td.au-empty a { color: var(--blue); }
+
 /* Video table */
 .au-vt td.num { width: 1%; }
 /* styles.css hides every table's 3rd column under 900px; Status must stay. */
 .au-vt th:nth-child(3), .au-vt td:nth-child(3) { display: table-cell; }
 .au-vt .badge { max-width: 180px; }
 .au-vt .badge .au-mono { overflow: hidden; text-overflow: ellipsis; }
+.au-vt .vcell.au-sq img { width: 52px; aspect-ratio: 1; }
 
 /* Recent requests */
 .au-feed { list-style: none; margin: 0; padding: 0; }
@@ -57,6 +75,7 @@ td.au-empty { padding: 22px 16px; }
 .au-fs.sent { color: var(--green); }
 .au-fs.waiting { color: var(--amber); }
 .au-fs.failed { color: var(--red); }
+.au-fs.dm { color: var(--blue); }
 .au-when { font-size: 12px; color: var(--faint); white-space: nowrap; flex: none; }
 .au-more { padding: 10px 18px; border-top: 1px solid var(--line-2); text-align: center; }
 
@@ -86,6 +105,7 @@ td.au-empty { padding: 22px 16px; }
   .au-side .au-sw { margin-left: auto; }
   .au-vt th, .au-vt td { padding: 10px 12px; }
   .au-vt .vcell img { width: 56px; }
+  .au-vt .vcell.au-sq img { width: 44px; }
   .au-vt .badge { max-width: 120px; }
   .au-feed > li:not(.au-empty) { padding: 10px 14px; }
   .hide-xs { display: none; }

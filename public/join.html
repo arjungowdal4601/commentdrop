@@ -14,13 +14,14 @@
     <a class="brand" href="/"><span class="logo">▶</span>CommentDrop</a>
     <div>
       <h1>Comment the keyword.<br>Get it in your inbox.</h1>
-      <p class="lead">Link your YouTube once. Then comment a creator's keyword and the file lands in your email.</p>
+      <p class="lead" id="lead">Link your YouTube once. Then comment a creator's keyword and the file lands in your email.</p>
     </div>
 
     <a class="btn dark gjoin" id="gJoin" href="/api/auth/viewer">
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
       Continue with Google</a>
     <p class="small muted gnote">One click. We only read your email and which YouTube channel is yours. We can't post or email as you.</p>
+    <p class="err" id="igErr" hidden></p>
     <div class="or"><span>or type it in</span></div>
     <form class="card form" id="joinForm" style="box-shadow:none">
       <div class="field">
@@ -42,8 +43,8 @@
   <section class="join-right">
     <div>
       <div class="steps">
-        <div class="step"><div class="n">1</div><div><b>Link once</b><span>Your email + the YouTube account you comment from.</span></div></div>
-        <div class="step"><div class="n">2</div><div><b>Comment the keyword</b><span>On any video from a creator using CommentDrop.</span></div></div>
+        <div class="step"><div class="n">1</div><div><b id="s1b">Link once</b><span id="s1">Your email + the YouTube account you comment from.</span></div></div>
+        <div class="step"><div class="n">2</div><div><b>Comment the keyword</b><span id="s2">On any video from a creator using CommentDrop.</span></div></div>
         <div class="step"><div class="n">3</div><div><b>Check your inbox</b><span>The material arrives in under a minute.</span></div></div>
       </div>
       <div class="mock-comment">
@@ -61,26 +62,73 @@
   .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 </style>
 <script>
-// Back from "Continue with Google".
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const el = (id) => document.getElementById(id);
+const hideLinkForm = () => {
+  ['gJoin', 'joinForm'].forEach((id) => { el(id).hidden = true; });
+  document.querySelector('.gnote').hidden = true;
+  document.querySelector('.or').hidden = true;
+};
+const showDone = (html) => { el('done').hidden = false; el('done').innerHTML = html; };
+
+// Instagram viewers arrive from a one-time DM link (?ig=<token>): Google sign-in only reads their email.
+async function igLink(token, error) {
+  hideLinkForm();
+  el('lead').textContent = 'Checking your link…';
+  if (error) { el('igErr').hidden = false; el('igErr').textContent = "Google sign-in didn't finish. Try again."; }
+  let d;
+  try {
+    const res = await fetch(`/api/ig-link/${encodeURIComponent(token)}`);
+    d = await res.json();
+  } catch {
+    el('lead').textContent = "Couldn't check this link. Refresh the page to try again.";
+    return;
+  }
+  if (!d.valid) {
+    el('igErr').hidden = true;
+    el('lead').textContent = {
+      expired: 'This link has expired. Comment the keyword again to get a new one.',
+      used: 'This link was already used. Your email is linked — new files arrive automatically.',
+    }[d.reason] || "This link isn't valid.";
+    return;
+  }
+  el('lead').innerHTML = `Hi ${d.username ? `@${esc(d.username)}` : 'there'} — sign in with Google to get <b>${esc(d.materialName || 'the file')}</b>${d.creator ? ` from ${esc(d.creator)}` : ''} by email.`;
+  el('gJoin').href = `/api/auth/viewer?ig=${encodeURIComponent(token)}`;
+  el('gJoin').hidden = false;
+  const note = document.querySelector('.gnote');
+  note.textContent = 'One click. We only read your email address. No YouTube access, and we can’t post or email as you.';
+  note.hidden = false;
+}
+
 (() => {
   const p = new URLSearchParams(location.search);
+  const viaIg = p.get('via') === 'instagram';
+  if (p.get('ig') || viaIg) {
+    el('s1b').textContent = 'Sign in once';
+    el('s1').textContent = 'Just your email. Instagram sends you the link by DM.';
+    el('s2').textContent = 'On any post from a creator using CommentDrop.';
+  }
+  // Back from "Continue with Google".
   if (p.get('linked')) {
     const n = Number(p.get('sent') || 0);
-    ['gJoin', 'joinForm'].forEach((id) => { document.getElementById(id).hidden = true; });
-    document.querySelector('.gnote').hidden = true;
-    document.querySelector('.or').hidden = true;
-    const done = document.getElementById('done');
-    done.hidden = false;
-    done.innerHTML = `<div class="linked"><div class="av">✓</div><div><b>Linked with Google</b><div class="small" style="color:var(--green);font-weight:600">Your YouTube account and email are connected</div></div></div>
-      <p class="muted" style="margin:14px 0 0">${n ? `You'd already asked for ${n} file${n > 1 ? 's' : ''}. Sent just now, check your inbox.` : 'All set. Comment the keyword on a video and check your inbox.'}</p>`;
+    hideLinkForm();
+    if (viaIg) {
+      el('lead').textContent = 'All set. Files you ask for in a comment now come straight to your email.';
+      showDone(`<div class="linked"><div class="av">✓</div><div><b>You're linked</b><div class="small" style="color:var(--green);font-weight:600">Your Instagram and email are connected</div></div></div>
+        <p class="muted" style="margin:14px 0 0">${n ? `${n} file${n > 1 ? 's' : ''} on the way to your inbox. ` : ''}Next time you comment a keyword, it arrives automatically.</p>`);
+    } else {
+      showDone(`<div class="linked"><div class="av">✓</div><div><b>Linked with Google</b><div class="small" style="color:var(--green);font-weight:600">Your YouTube account and email are connected</div></div></div>
+        <p class="muted" style="margin:14px 0 0">${n ? `You'd already asked for ${n} file${n > 1 ? 's' : ''}. Sent just now, check your inbox.` : 'All set. Comment the keyword on a video and check your inbox.'}</p>`);
+    }
     history.replaceState(null, '', '/join');
+  } else if (p.get('ig')) {
+    igLink(p.get('ig'), p.get('error'));
   } else if (p.get('error')) {
-    document.getElementById('joinErr').textContent = p.get('error') === 'no_channel'
+    el('joinErr').textContent = p.get('error') === 'no_channel'
       ? 'That Google account has no YouTube channel. Pick the account you comment from, or type your @handle below.'
       : "Google sign-in didn't finish. Try again, or type your details below.";
   }
 })();
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 document.getElementById('joinForm').onsubmit = async (e) => {
   e.preventDefault();
   const btn = e.target.querySelector('button');
